@@ -89,7 +89,7 @@ class HelixerExportControllerBase(object):
                 attrs[module.__name__ + '_commit'] = 'commit not found, version: {}'.format(
                     version(module.__name__) 
                 )
-                print('logged installed version in place of git commit for {}'.format(module.__name__))
+                print('logged installed version in place of git commit for {}'.format(module.__name__), flush=True)
         os.chdir(pwd)
         # insert attrs into .h5 file
         for key, value in attrs.items():
@@ -130,9 +130,14 @@ class HelixerFastaToH5Controller(HelixerExportControllerBase):
                 data, h5_coords = strand_res
                 self._save_data(data, h5_coords=h5_coords, n_chunks=n_chunks,
                                 first_round_for_coordinate=(j == 0), compression=compression)
-            print(f'{i + 1} Numerified {coord} in {time.time() - start_time:.2f} secs', end='\n\n')
+            print(f'{i + 1} Numerified {coord} in {time.time() - start_time:.2f} secs', end='\n\n', flush=True)
         self._add_data_attrs()
+        self.h5.flush()
         self.h5.close()
+        # os anti-race-condition sync trial
+        fd = os.open(self.output_path, os.O_RDONLY)
+        os.fsync(fd)
+        os.close(fd)
 
 
 class HelixerExportController(HelixerExportControllerBase):
@@ -142,6 +147,7 @@ class HelixerExportController(HelixerExportControllerBase):
         self.h5_group = h5_group
         input_db_path = self.input_path
         self.h5_coord_offset = 0
+        self.output_path = output_path
 
         # check db
         conn = sqlite3.connect(input_db_path)
@@ -159,7 +165,7 @@ class HelixerExportController(HelixerExportControllerBase):
             self.h5 = h5py.File(output_path, 'a')
         else:
             self.h5 = h5py.File(output_path, 'w')
-        print(f'Exporting all data to {output_path}')
+        print(f'Exporting all data to {output_path}', flush=True)
 
     def _coord_info(self, coords_features):
         coord_info = {}
@@ -196,7 +202,7 @@ class HelixerExportController(HelixerExportControllerBase):
     def export(self, chunk_size, one_hot=True, longest_only=True, write_by=10_000_000_000,
                modes=('X', 'y', 'anno_meta', 'transitions'), compression='gzip', multiprocess=True):
         coords_features = self.exporter.genome_query(longest_only=longest_only)
-        print(f'\n{len(coords_features)} coordinates chosen to numerify')
+        print(f'\n{len(coords_features)} coordinates chosen to numerify', flush=True)
         if self.match_existing:
             # resort coordinates to match existing
             seqids = self.h5['data/seqids'][:]
@@ -225,9 +231,15 @@ class HelixerExportController(HelixerExportControllerBase):
             print(f'{n_coords_done}/{len(coords_features)} Numerified {coord} '
                   f"with {len(coord.features)} features in {flat_data[0].matrix.shape[0]} chunks, "
                   f'masked rate: {masked_bases_perc:.2f}%, ig rate: {ig_bases_perc:.2f}%, '
-                  f'({time.time() - start_time:.2f} secs)', end='\n\n')
+                  f'({time.time() - start_time:.2f} secs)', end='\n\n', flush=True)
             n_coords_done += 1
         self._add_data_attrs()
+        self.h5.flush()
         self.h5.close()
-        print('Export from geenuff db to h5 file(s) with numeric matrices finished successfully.')
+
+        # os anti-race-condition sync trial
+        fd = os.open(self.output_path, os.O_RDONLY)
+        os.fsync(fd)
+        os.close(fd)
+        print('Export from geenuff db to h5 file(s) with numeric matrices finished successfully.', flush=True)
         return n_writing_chunks  # for testing only atm

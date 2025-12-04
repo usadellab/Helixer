@@ -174,6 +174,7 @@ class HelixerParameterParser(ParameterParser):
 
 
 def main():
+    print(f'Starting Helixer, using python version {sys.version}', flush=True)
     helixer_post_bin = 'helixer_post_bin'
     start_time = time.time()
     pp = HelixerParameterParser('config/helixer_config.yaml')
@@ -181,7 +182,7 @@ def main():
     args.overlap = not args.no_overlap  # minor overlapping is a far better default for inference. Thus, this hack.
     # before we start, check if helixer_post_bin will (presumably) be able to run
     # first, is it there
-    print(colored(f'Testing whether {helixer_post_bin} is correctly installed', 'green'))
+    print(colored(f'Testing whether {helixer_post_bin} is correctly installed', 'green'), flush=True)
     if not shutil.which(helixer_post_bin):
         print(colored(f'\nError: {helixer_post_bin} not found in $PATH, this is required for Helixer.py to complete.\n',
                       'red'),
@@ -207,19 +208,19 @@ def main():
             pass
         os.remove(test_file)
     except Exception as e:
-        print(colored(f'checking if a random test file ({test_file}) can be written in the output directory', 'yellow'))
+        print(colored(f'checking if a random test file ({test_file}) can be written in the output directory', 'yellow'), flush=True)
         if not os.path.isdir(out_dir):
             # the 'file not found error' for the directory when the user is thinking
             # "of course it's not there, I want to crete it"
             # tends to confuse..., so make it obvious here
             print(colored(f'the output directory {out_dir}, needed to write the '
-                  f'output file {args.gff_output_path}, is absent, inaccessible, or not a directory', 'red'))
+                  f'output file {args.gff_output_path}, is absent, inaccessible, or not a directory', 'red'), flush=True)
         raise e
 
-    print(colored('Helixer.py config loaded. Starting FASTA to H5 conversion.', 'green'))
+    print(colored('Helixer.py config loaded. Starting FASTA to H5 conversion.', 'green'), flush=True)
     # generate the .h5 file in a temp dir, which is then deleted
     with tempfile.TemporaryDirectory(dir=args.temporary_dir) as tmp_dirname:
-        print(f'storing temporary files under {tmp_dirname}')
+        print(f'storing temporary files under {tmp_dirname}', flush=True)
         tmp_genome_h5_path = os.path.join(tmp_dirname, f'tmp_species_{args.species}.h5')
         tmp_pred_h5_path = os.path.join(tmp_dirname, f'tmp_predictions_{args.species}.h5')
 
@@ -231,7 +232,7 @@ def main():
 
         msg = 'with' if args.overlap else 'without'
         msg = 'FASTA to H5 conversion done. Starting neural network prediction ' + msg + ' overlapping.'
-        print(colored(msg, 'green'))
+        print(colored(msg, 'green'), flush=True)
 
         hybrid_model_args = [
             '--verbose',
@@ -248,7 +249,7 @@ def main():
         model = HybridModel(cli_args=hybrid_model_args)
         model.run()
 
-        print(colored('Neural network prediction done. Starting post processing.', 'green'))
+        print(colored('Neural network prediction done. Starting post processing.', 'green'), flush=True)
 
         # call to HelixerPost, has to be in PATH
         helixerpost_cmd = [helixer_post_bin, tmp_genome_h5_path, tmp_pred_h5_path]
@@ -260,9 +261,9 @@ def main():
             run_time = time.time() - start_time
             print(colored(f'\nHelixer successfully finished the annotation of {args.fasta_path} '
                           f'in {run_time / (60 * 60):.2f} hours. '
-                          f'GFF file written to {args.gff_output_path}.', 'green'))
+                          f'GFF file written to {args.gff_output_path}.', 'green'), flush=True)
         else:
-            print(colored('\nAn error occurred during post processing. Exiting.', 'red'))
+            print(colored('\nAn error occurred during post processing. Exiting.', 'red'), flush=True)
 
 
 if __name__ == '__main__':
