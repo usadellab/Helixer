@@ -133,11 +133,13 @@ class HelixerFastaToH5Controller(HelixerExportControllerBase):
             print(f'{i + 1} Numerified {coord} in {time.time() - start_time:.2f} secs', end='\n\n', flush=True)
         self._add_data_attrs()
         self.h5.flush()
-        self.h5.close()
         # os anti-race-condition sync trial
-        fd = os.open(self.output_path, os.O_RDONLY)
-        os.fsync(fd)
-        os.close(fd)
+        try:
+            fid = self.h5.id.get_vfd_handle()
+            os.fsync(fid)
+        except Exception:
+            pass  # silently skip if os sync is not supported
+        self.h5.close()
 
 
 class HelixerExportController(HelixerExportControllerBase):
@@ -235,6 +237,12 @@ class HelixerExportController(HelixerExportControllerBase):
             n_coords_done += 1
         self._add_data_attrs()
         self.h5.flush()
+        # os anti-race-condition sync trial
+        try:
+            fid = self.h5.id.get_vfd_handle()
+            os.fsync(fid)
+        except Exception:
+            pass  # silently skip if os sync is not supported
         self.h5.close()
 
         # os anti-race-condition sync trial

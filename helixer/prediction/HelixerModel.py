@@ -693,6 +693,7 @@ class HelixerModel(ABC):
         K.set_floatx(self.float_precision)
         if self.gpu_id > -1:
             tf.config.set_visible_devices([gpu_devices[self.gpu_id]], 'GPU')
+        print(f'GPU devices: {gpu_devices}', flush=True)
 
     def gen_training_data(self):
         SequenceCls = self.sequence_cls()
@@ -951,10 +952,12 @@ class HelixerModel(ABC):
                                             dtype='float16',
                                             compression=self.compression,
                                             shuffle=True)
+                    pred_out.flush()
                 else:
                     old_len = pred_out[dset_name].shape[0]
                     pred_out[dset_name].resize(old_len + pred_dset.shape[0], axis=0)
-                pred_out[dset_name][old_len:] = pred_dset
+                    pred_out[dset_name][old_len:] = pred_dset  # todo, check result if this really is correct
+                    pred_out.flush()
 
         # add model config and other attributes to predictions
         h5_model = h5py.File(self.load_model_path, 'r')
@@ -966,11 +969,13 @@ class HelixerModel(ABC):
         if hasattr(self, 'loaded_model_hash'):
             pred_out.attrs['model_md5sum'] = self.loaded_model_hash
         pred_out.flush()
-        pred_out.close()
         # os anti-race-condition sync trial
-        fd = os.open(self.prediction_output_path, os.O_RDONLY)
-        os.fsync(fd)
-        os.close(fd)
+        try:
+            fid = pred_out.id.get_vfd_handle()
+            os.fsync(fid)
+        except Exception:
+            pass  # silently skip if os sync is not supported
+        pred_out.close()
         # close model file after extracting meta-data
         h5_model.close()
 
