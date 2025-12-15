@@ -1,5 +1,6 @@
 import os
 import csv
+import logging
 from shutil import copyfile
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -8,6 +9,8 @@ import geenuff
 from geenuff.base.helpers import full_db_path, reverse_complement
 from geenuff.base.orm import Coordinate, Genome
 from helixer.core.orm import Mer, MetaInformation
+
+logger = logging.getLogger('HelixerLogger')
 
 
 class HelixerController(object):
@@ -21,10 +24,10 @@ class HelixerController(object):
         self.db_path = db_path_out
         if db_path_out != '':
             if os.path.exists(db_path_out):
-                print('overriding the helixer output db at {}'.format(db_path_out))
+                logger.info('Overriding the helixer output db at {}'.format(db_path_out))
             copyfile(db_path_in, db_path_out)
         else:
-            print('adding the helixer additions directly to input db at {}'.format(db_path_in))
+            logger.info('Adding the helixer additions directly to input db at {}'.format(db_path_in))
             self.db_path = db_path_in
 
     def _mk_session(self):
@@ -37,7 +40,7 @@ class HelixerController(object):
         self.session = sessionmaker(bind=self.engine)()
 
     def _coord_ids_of_genome(self, genome_id):
-        print('Starting query for all coordinate ids')
+        logger.info('Starting query for all coordinate ids')
         coords = (self.session.query(Coordinate.id, Coordinate.seqid)
                      .filter(Coordinate.genome_id == genome_id)
                      .all())
@@ -75,7 +78,7 @@ class HelixerController(object):
 
                     # insert coordinate mers
                     if last_seqid != seqid:
-                        print(genome.species, last_seqid)
+                        logger.info(f'{genome.species}, {last_seqid}')
                         self._add_mers_of_seqid(coord_ids[last_seqid], last_seqid, seqid_mers)
                         seqid_mers = {}
                         last_seqid = seqid
@@ -90,14 +93,14 @@ class HelixerController(object):
 
                     # making sure to commit frequently but not all the time
                     if i % 1000000 == 0:
-                        print('Committing intermittent changes to the db')
+                        logger.info('Committing intermittent changes to the db')
                         self.session.commit()
 
-                print(genome.species, last_seqid)
+                logger.info(f'{genome.species}, {last_seqid}')
                 self._add_mers_of_seqid(coord_ids[last_seqid], last_seqid, seqid_mers)
-                print('Committing final changes to the db')
+                logger.info('Committing final changes to the db')
                 self.session.commit()
-                print('Kmers from file {} added\n'.format(kmer_file))
+                logger.info('Kmers from file {} added\n'.format(kmer_file))
 
     def add_meta_info_to_db(self):
         """For each genome found in the db, the function tries to insert meta data from the
@@ -115,7 +118,7 @@ class HelixerController(object):
                     if key != 'species':
                         meta_info = MetaInformation(genome=genome, name=key, value=value)
                         self.session.add(meta_info)
-                print('Meta info added for {}'.format(genome.species))
+                logger.info('Meta info added for {}'.format(genome.species))
             else:
-                print('Meta info not found for {}'.format(genome.species))
+                logger.info('Meta info not found for {}'.format(genome.species))
         self.session.commit()

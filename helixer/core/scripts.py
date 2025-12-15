@@ -1,10 +1,13 @@
 import os
 import yaml
 import argparse
-from pprint import pprint
+import logging
 from termcolor import colored
 from abc import ABC, abstractmethod
 from importlib.metadata import version
+
+logger = logging.getLogger('HelixerLogger')
+
 
 class ParameterParser(ABC):
     """Bundles code that parses script parameters from the command line and a config file."""
@@ -50,10 +53,10 @@ class ParameterParser(ABC):
                             assert type(value) == type(self.defaults[key]), msg
 
                 except yaml.YAMLError as e:
-                    print(f'An error occured during parsing of the YAML config file: {e} '
-                          '\nNot using the config file.')
+                    logger.error(colored(f'An error occured during parsing of the YAML config file: {e} '
+                                         '\nNot using the config file.', 'red'))
         else:
-            print(f'No config file found\n')
+            logger.info(f'No yaml config file found\n')
 
         # merge the config and cli parameters with the cli parameters having priority
         # there are no type checks being done for config parameters
@@ -64,10 +67,6 @@ class ParameterParser(ABC):
         args = self.parser.parse_args()
         args = self.load_and_merge_parameters(args)
         self.check_args(args)
-
-        print(colored('Helixer.py config: ', 'yellow'))
-        pprint(vars(args))
-        print()
         return args
 
 

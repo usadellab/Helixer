@@ -1,16 +1,17 @@
 import logging
 import os
 import sys
-
 import requests
 import appdirs
-
 import csv
+from termcolor import colored
 
 
 MODEL_PATH = os.path.join(appdirs.user_data_dir('Helixer'), 'models')
 MODEL_LIST_URL = 'https://raw.githubusercontent.com/weberlab-hhu/Helixer/main/resources/model_list.csv'
 MODEL_LIST = 'model_list.csv'
+
+logger = logging.getLogger('HelixerLogger')
 
 
 def set_model_path(custom_path):
@@ -40,7 +41,7 @@ def fetch_and_organize_models(priority_models, model_path):
         r = requests.get(url, allow_redirects=True)
         with open(os.path.join(model_path, lineage, mfile), 'wb') as f:
             f.write(r.content)
-        print(f'saved model {mfile} to {model_path}')
+        logger.info(f'saved model {mfile} to {model_path}')
 
     # additionally save model list to disk (so it can run offline w/ default models)
     r = requests.get(MODEL_LIST_URL, allow_redirects=True)
@@ -58,11 +59,11 @@ def prioritized_models(lineage, model_path):
             ml = ml.decode().split('\n')
     except requests.exceptions.RequestException as e:
         existing_list = os.path.join(model_path, MODEL_LIST)
-        print(f'encountered error: \n{e};\n\ncontinuing with existing list: {existing_list}')
+        logger.error(colored(f'encountered error: \n{e};\n\ncontinuing with existing list: {existing_list}', 'red'))
         with open(existing_list) as f:
             ml = f.readlines()
             ml = [x.rstrip() for x in ml]
-    print(f'retrieved list of available models from {MODEL_LIST_URL}')
+    logger.info(f'retrieved list of available models from {MODEL_LIST_URL}')
 
     cr = csv.reader(ml)
     models = []
@@ -111,7 +112,7 @@ def report_if_current_not_best(prioritized, current):
     elif current == prioritized[0]['model_file_name']:
         pass  # all up to date, no action required
     else:
-        logging.info(f'newer/better model: {prioritized[0]["model_file_name"]} available than current: {current}'
-                     f'for lineage {prioritized[0]["lineage"]}.'
-                     f'You can get the latest model(s) with fetch_helixer_models.py, if desired.')
+        logger.info(f'newer/better model: {prioritized[0]["model_file_name"]} available than current: {current}'
+                    f'for lineage {prioritized[0]["lineage"]}.'
+                    f'You can get the latest model(s) with fetch_helixer_models.py, if desired.')
 

@@ -1,5 +1,5 @@
 import sys
-
+import logging
 import numpy as np
 import os
 import csv
@@ -7,9 +7,10 @@ from collections import defaultdict
 from terminaltables import AsciiTable
 from scipy.sparse import coo_matrix
 
+logger = logging.getLogger('HelixerLogger')
+
 
 class ConfusionMatrix:
-
     def __init__(self, col_names=None, skip_uncertainty=True):
         if col_names is None:
             col_names = ['ig', 'utr', 'exon', 'intron']
@@ -119,8 +120,8 @@ class ConfusionMatrix:
 
     def _print_results(self, scores):
         for table, table_name in self.prep_tables(scores):
-            print('\n', AsciiTable(table, table_name).table, sep='')
-        print('Total acc: {:.4f}'.format(self._total_accuracy()))
+            logger.info('\n\n' + AsciiTable(table, table_name).table + '\n')
+        logger.info('Total acc: {:.4f}'.format(self._total_accuracy()))
 
     def print_cm(self):
         scores = self._get_scores()
@@ -272,11 +273,11 @@ class Metrics:
 
     def calculate_metrics(self, model):
         for batch_idx in range(len(self.generator)):
-            print(batch_idx, '/', len(self.generator) - 1, end="\r")
+            print(batch_idx + 1, '/', len(self.generator), end="\r", flush=True)
 
             inputs = self.generator[batch_idx]
             if len(inputs) == 2 and type(inputs[0]) is list:
-                mode = 'dialated_conv'
+                mode = 'dilated_conv'
                 (X, sw), y_true = inputs
                 y_pred = model.predict_on_batch([X, sw])
             elif len(inputs) == 3:
@@ -306,6 +307,7 @@ class Metrics:
                 if self.generator.overlap:
                     y_true, y_pred, sw_copy = self._overlap_all_data(batch_idx, y_true, y_pred, sw_copy)
                 cm.count_and_calculate_one_batch(y_true, y_pred, sw_copy)
+        print('\n', flush=True)
 
         # data contains cms + metric
         for metric_name, (cm, (_, _)) in data.items():

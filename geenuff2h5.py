@@ -1,6 +1,11 @@
 #! /usr/bin/env python3
+import logging.config
+from pprint import pformat
+from termcolor import colored
+
 from helixer.core.scripts import ExportParameterParser
 from helixer.export.exporter import HelixerExportController
+from helixer.core.helpers import get_log_dict
 
 
 def main(args):
@@ -26,20 +31,21 @@ def main(args):
 if __name__ == '__main__':
     pp = ExportParameterParser(config_file_path='config/geenuff2h5_config.yaml')
     pp.io_group.add_argument('--input-db-path', type=str, required=True,
-                            help='Path to the GeenuFF SQLite input database (has to contain only one genome).')
+                             help='Path to the GeenuFF SQLite input database (has to contain only one genome).')
     pp.io_group.add_argument('--add-additional', type=str,
-                            help='Outputs the datasets under alternatives/{add-additional}/ (and checks sort order against '
-                                 'existing "data" datasets). Use to add e.g. additional annotations from Augustus.')
+                             help='Outputs the datasets under alternatives/{add-additional}/ (and checks sort order '
+                                  'against existing "data" datasets). Use to add e.g. additional annotations from '
+                                  'Augustus.')
     pp.data_group.add_argument('--subsequence-length', type=int,
-                              help='Length of the subsequences that the model will use at once. (Default is 21384)')
+                               help='Length of the subsequences that the model will use at once. (Default is 21384)')
     pp.data_group.add_argument('--modes', type=str,
-                              help='Either "all" (default), or a comma separated list with desired members of the following '
-                                   '{X, y, anno_meta, transitions} that should be exported. This can be useful, for '
-                                   'instance when skipping transitions (to reduce size/mem) or skipping X because '
-                                   'you are adding an additional annotation set to an existing file.')
+                               help='Either "all" (default), or a comma separated list with desired members of the '
+                                    'following {X, y, anno_meta, transitions} that should be exported. This can be '
+                                    'useful, for instance when skipping transitions (to reduce size/mem) or skipping '
+                                    'X because you are adding an additional annotation set to an existing file.')
     pp.data_group.add_argument('--write-by', type=int,
-                              help='Write in super-chunks with this many base pairs, which will be rounded to be '
-                                   'divisible by subsequence-length. (Default is 21_384_000_000).')
+                               help='Write in super-chunks with this many base pairs, which will be rounded to be '
+                                    'divisible by subsequence-length. (Default is 21_384_000_000).')
 
     # need to add any default values like this
     pp.defaults['add_additional'] = ''
@@ -48,4 +54,7 @@ if __name__ == '__main__':
     pp.defaults['write_by'] = 21_384_000_000
 
     args = pp.get_args()
+    logging.config.dictConfig(get_log_dict())
+    logger = logging.getLogger('HelixerLogger')
+    logger.info(colored('\ngeenuff2h5.py config:\n', 'yellow') + f'{pformat(vars(args))}\n')
     main(args)

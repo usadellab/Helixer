@@ -6,6 +6,7 @@ import numpy as np
 import sqlite3
 import datetime
 import subprocess
+import logging
 from importlib.metadata import version
 
 import geenuff
@@ -13,6 +14,8 @@ import helixer
 from geenuff.applications.exporter import GeenuffExportController
 from geenuff.applications.importer import FastaImporter
 from .numerify import CoordNumerifier
+
+logger = logging.getLogger('HelixerLogger')
 
 
 class HelixerExportControllerBase(object):
@@ -89,7 +92,7 @@ class HelixerExportControllerBase(object):
                 attrs[module.__name__ + '_commit'] = 'commit not found, version: {}'.format(
                     version(module.__name__) 
                 )
-                print('logged installed version in place of git commit for {}'.format(module.__name__), flush=True)
+                logger.info('logged installed version in place of git commit for {}'.format(module.__name__))
         os.chdir(pwd)
         # insert attrs into .h5 file
         for key, value in attrs.items():
@@ -130,7 +133,7 @@ class HelixerFastaToH5Controller(HelixerExportControllerBase):
                 data, h5_coords = strand_res
                 self._save_data(data, h5_coords=h5_coords, n_chunks=n_chunks,
                                 first_round_for_coordinate=(j == 0), compression=compression)
-            print(f'{i + 1} Numerified {coord} in {time.time() - start_time:.2f} secs', end='\n\n', flush=True)
+            logger.info(f'{i + 1} Numerified {coord} in {time.time() - start_time:.2f} secs\n')
         self._add_data_attrs()
         self.h5.flush()
         # os anti-race-condition sync trial
@@ -167,7 +170,7 @@ class HelixerExportController(HelixerExportControllerBase):
             self.h5 = h5py.File(output_path, 'a')
         else:
             self.h5 = h5py.File(output_path, 'w')
-        print(f'Exporting all data to {output_path}', flush=True)
+        logger.info(f'Exporting all data to {output_path}')
 
     def _coord_info(self, coords_features):
         coord_info = {}
@@ -204,7 +207,7 @@ class HelixerExportController(HelixerExportControllerBase):
     def export(self, chunk_size, one_hot=True, longest_only=True, write_by=10_000_000_000,
                modes=('X', 'y', 'anno_meta', 'transitions'), compression='gzip', multiprocess=True):
         coords_features = self.exporter.genome_query(longest_only=longest_only)
-        print(f'\n{len(coords_features)} coordinates chosen to numerify', flush=True)
+        logger.info(f'\n{len(coords_features)} coordinates chosen to numerify')
         if self.match_existing:
             # resort coordinates to match existing
             seqids = self.h5['data/seqids'][:]
@@ -230,10 +233,10 @@ class HelixerExportController(HelixerExportControllerBase):
                                 compression=compression, h5_group=self.h5_group)
                 n_writing_chunks += 1
 
-            print(f'{n_coords_done}/{len(coords_features)} Numerified {coord} '
-                  f"with {len(coord.features)} features in {flat_data[0].matrix.shape[0]} chunks, "
-                  f'masked rate: {masked_bases_perc:.2f}%, ig rate: {ig_bases_perc:.2f}%, '
-                  f'({time.time() - start_time:.2f} secs)', end='\n\n', flush=True)
+            logger.info(f'{n_coords_done}/{len(coords_features)} Numerified {coord} '
+                        f'with {len(coord.features)} features in {flat_data[0].matrix.shape[0]} chunks, '
+                        f'masked rate: {masked_bases_perc:.2f}%, ig rate: {ig_bases_perc:.2f}%, '
+                        f'({time.time() - start_time:.2f} secs)\n')
             n_coords_done += 1
         self._add_data_attrs()
         self.h5.flush()
@@ -249,5 +252,5 @@ class HelixerExportController(HelixerExportControllerBase):
         fd = os.open(self.output_path, os.O_RDONLY)
         os.fsync(fd)
         os.close(fd)
-        print('Export from geenuff db to h5 file(s) with numeric matrices finished successfully.', flush=True)
+        logger.info('Export from geenuff db to h5 file(s) with numeric matrices finished successfully.')
         return n_writing_chunks  # for testing only atm

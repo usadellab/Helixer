@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 import os
 import sys
+import io
+import contextlib
 
 import helixer.core.helpers
 
@@ -14,12 +16,13 @@ import h5py
 import numcodecs
 import argparse
 import datetime
+import logging
 from importlib.metadata import version
 import subprocess
 import numpy as np
 import tensorflow as tf
 from sklearn.utils import shuffle
-from pprint import pprint
+from pprint import pformat
 from termcolor import colored
 from terminaltables import AsciiTable
 
@@ -33,6 +36,8 @@ from tensorflow_addons.optimizers import AdamW
 
 from helixer.prediction.Metrics import Metrics
 from helixer.core import overlap
+
+logger = logging.getLogger('HelixerLogger')
 
 
 class ConfusionMatrixTrain(Callback):
@@ -51,19 +56,19 @@ class ConfusionMatrixTrain(Callback):
         self.checks_without_improvement = 0
         self.check_every_nth_batch = check_every_nth_batch  # high default for ~ 1 / epoch
         self.epoch = 0
-        print(self.save_model_path, 'SAVE MODEL PATH', flush=True)
+        logger.info(self.save_model_path + ' is the path models will be saved to')
 
     def on_epoch_begin(self, epoch, logs=None):
         self.epoch_start = time.time()
 
     def on_epoch_end(self, epoch, logs=None):
-        print(f'training took {(time.time() - self.epoch_start) / 60:.2f}m', flush=True)
+        logger.info(f'training took {(time.time() - self.epoch_start) / 60:.2f}m')
         self.check_in()
         self.epoch += 1
 
     def on_train_batch_end(self, batch, logs=None):
         if not (batch + 1) % self.check_every_nth_batch:
-            print(f'\nvalidation and checkpoint at batch {batch}', flush=True)
+            logger.info(f'\nvalidation and checkpoint at batch {batch}')
             self.check_in(batch)
 
     def freeze_layers(self, model):
@@ -82,13 +87,13 @@ class ConfusionMatrixTrain(Callback):
             self.best_val_genic_f1 = val_genic_f1
             self.freeze_layers(self.model)
             self.model.save(self.save_model_path, save_format='h5')
-            print('saved new best model with genic f1 of {} at {}'.format(self.best_val_genic_f1,
-                                                                          self.save_model_path), flush=True)
+            logger.info('saved new best model with genic f1 of {} at {}'.format(self.best_val_genic_f1,
+                                                                          self.save_model_path))
             self.checks_without_improvement = 0
         else:
             self.checks_without_improvement += 1
             if self.checks_without_improvement >= self.patience:
-                print(f'stopping training, patience of {self.patience} without improvement exhausted', flush=True)
+                logger.info(f'stopping training, patience of {self.patience} without improvement exhausted')
                 self.model.stop_training = True
         if batch is None:
             b_str = 'epoch_end'
@@ -97,14 +102,14 @@ class ConfusionMatrixTrain(Callback):
         if self.save_every_check:
             path = os.path.join(self.save_dir, f'model_e{self.epoch}_{b_str}.h5')
             self.model.save(path, save_format='h5')
-            print(f'saved model at {path}', flush=True)
+            logger.info(f'saved model at {path}')
 
     def on_train_end(self, logs=None):
         if os.path.isdir(self.large_eval_folder):
             # load best model
             best_model = load_model(self.save_model_path)
             # double check that we loaded the correct model, can be remove if confirmed this works
-            print('\nValidation set again:', flush=True)
+            logger.info('\nValidation set again:')
             _, _, val_genic_f1 = HelixerModel.run_metrics(self.val_generator, best_model, print_to_stdout=True,
                                                           calc_H=self.calc_H)
             assert val_genic_f1 == self.best_val_genic_f1
@@ -189,34 +194,33 @@ class HelixerSequence(Sequence):
 
         self.compressor = numcodecs.blosc.Blosc(cname='blosclz', clevel=4, shuffle=2)  # use BITSHUFFLE
 
-        print(f'\nstarting to load {self.mode} data into memory..', flush=True)
+        logger.info(f'Starting to load {self.mode} data into memory...')
 
         for h5_file in self.h5_files:
             self._load_one_h5(h5_file)
 
         for name, data_list in zip(self.data_list_names, self.data_lists):
             comp_data_size = sum([sys.getsizeof(e) for e in data_list])
-            print(f'Compressed data size of {name} is at least {comp_data_size / 2 ** 30:.4f} GB\n', flush=True)
+            logger.info(f'Compressed data size of {name} is at least {comp_data_size / 2 ** 30:.4f} GB')
 
         self.n_seqs = len(self.data_lists[0])
-        print(f'setting self.n_seqs to {self.n_seqs}, bc that is len of {self.data_list_names[0]}', flush=True)
+        logger.info(f'setting self.n_seqs to {self.n_seqs}, bc that is len of {self.data_list_names[0]}\n')
 
         if self.mode == "test":
             if self.class_weights is not None:
-                print(f'ignoring the class_weights of {self.class_weights} in mode "test"', flush=True)
+                logger.info(f'ignoring the class_weights of {self.class_weights} in mode "test"')
                 self.class_weights = None
             if self.transition_weights is not None:
-                print(f'ignoring the transition_weights of {self.transition_weights} in mode "test"', flush=True)
+                logger.info(f'ignoring the transition_weights of {self.transition_weights} in mode "test"')
                 self.transition_weights = None
 
-
     def _load_one_h5(self, h5_file):
-        print(f'For h5 starting with species = {h5_file["data/species"][0]}:', flush=True)
+        logger.info(f'For h5 starting with species = {h5_file["data/species"][0]}:')
         x_dset = h5_file['data/X']
-        print(f'x shape: {x_dset.shape}', flush=True)
+        logger.info(f'x shape: {x_dset.shape}')
         if not self.only_predictions:
             y_dset = h5_file['data/y']
-            print(f'y shape: {y_dset.shape}', flush=True)
+            logger.info(f'y shape: {y_dset.shape}')
 
         if self.debug:
             # so that total sequences between all files add to ~1000
@@ -228,7 +232,7 @@ class HelixerSequence(Sequence):
             mask = np.logical_and(h5_file['data/is_annotated'],
                                   h5_file['data/err_samples'])
             n_masked = x_dset.shape[0] - np.sum(mask)
-            print(f'\nmasking {n_masked} completely un-annotated or completely erroneous sequences', flush=True)
+            logger.info(f'masking {n_masked} completely un-annotated or completely erroneous sequences')
 
         else:
             mask = np.ones(h5_file['data/X'].shape[0], dtype=bool)
@@ -254,8 +258,8 @@ class HelixerSequence(Sequence):
                 if self.no_utrs and name == 'data/y':
                     HelixerSequence._zero_out_utrs(self.chunk_size, )
                 data_list.extend([self.compressor.encode(e) for e in data_slice])
-            print(f'Data loading of {n_seqs - n_masked} (total so far {len(data_list)}) samples of {name} '
-                  f'into memory took {time.time() - start_time_dset:.2f} secs', flush=True)
+            logger.info(f'Data loading of {n_seqs - n_masked} (total so far {len(data_list)}) samples of {name} '
+                        f'into memory took {time.time() - start_time_dset:.2f} secs')
 
     @staticmethod
     def _fix_reverse_strand_padding(chunk_size, starts_ends, data_slice):
@@ -285,7 +289,7 @@ class HelixerSequence(Sequence):
     def shuffle_data(self):
         start_time = time.time()
         self.data_lists = shuffle(*self.data_lists)
-        print(f'Reshuffled {self.mode} data in {time.time() - start_time:.2f} secs', flush=True)
+        logger.info(f'Reshuffled {self.mode} data in {time.time() - start_time:.2f} secs')
 
     def _cp_into_namespace(self, names):
         """Moves class properties from self.model into this class for brevity"""
@@ -602,9 +606,9 @@ class HelixerModel(ABC):
                     'calculate_uncertainty', 'no_utrs', 'load_predictions']:
             default = self.parser.get_default(arg)
             if args[arg] != default:
-                print(colored(
+                logger.info(colored(
                     f"Warning: the argument '{arg}' is deprecated and will be "
-                    f"removed in the future. The argument will have no effect.", 'yellow'), flush=True)
+                    f"removed in the future. The argument will have no effect.", 'yellow'))
                 # set arg back to default
                 args[arg] = default
 
@@ -663,9 +667,7 @@ class HelixerModel(ABC):
             self.transition_weights = np.array(self.transition_weights, dtype=np.float32)
 
         if self.verbose:
-            print(colored('HelixerModel config: ', 'yellow'), flush=True)
-            pprint(args)
-            sys.stdout.flush()
+            logger.info(colored('\nHelixerModel config:\n', 'yellow') + f'{pformat(args)}\n')
 
         # this extracts the pool size from the model file without initializing it or any resources
         # this then sets the pool size to the one inferred from the loaded model
@@ -693,7 +695,7 @@ class HelixerModel(ABC):
         K.set_floatx(self.float_precision)
         if self.gpu_id > -1:
             tf.config.set_visible_devices([gpu_devices[self.gpu_id]], 'GPU')
-        print(f'GPU devices: {gpu_devices}', flush=True)
+        logger.info(f'GPU devices: {gpu_devices}')
 
     def gen_training_data(self):
         SequenceCls = self.sequence_cls()
@@ -719,7 +721,7 @@ class HelixerModel(ABC):
         genic_metrics = metrics['genic_base_wise']['genic']
         if np.isnan(genic_metrics['f1']):
             genic_metrics['f1'] = 0.0
-        print('\nmetrics calculation took: {:.2f} minutes\n'.format(int(time.time() - start) / 60), flush=True)
+        logger.info('metrics calculation took: {:.2f} minutes\n'.format(int(time.time() - start) / 60))
         return genic_metrics['precision'], genic_metrics['recall'], genic_metrics['f1']
 
     @staticmethod
@@ -730,7 +732,7 @@ class HelixerModel(ABC):
                 if name.lower() in training_species:
                     name += ' (T)'
                 table.append([name] + [f'{v:.4f}' for v in values])
-            print('\n', AsciiTable(table, table_name).table, sep='', flush=True)
+            logger.info('\n\n' + AsciiTable(table, table_name).table + '\n')
 
         results = []
         training_species = [s.lower() for s in training_species]
@@ -738,13 +740,13 @@ class HelixerModel(ABC):
         for i, eval_file_name in enumerate(eval_file_names):
             h5_eval = h5py.File(eval_file_name, 'r')
             species_name = os.path.basename(eval_file_name).split('.')[0]
-            print(f'\nEvaluating with a sample of {species_name} ({i + 1}/{len(eval_file_names)})', flush=True)
+            logger.info(f'\nEvaluating with a sample of {species_name} ({i + 1}/{len(eval_file_names)})')
 
             # possibly adjust batch size based on sample length, which could be flexible
             # assume the given batch size is for 20k length
             sample_len = h5_eval['data/X'].shape[1]
             adjusted_batch_size = int(generator.batch_size * (20000 / sample_len))
-            print(f'adjusted batch size is {adjusted_batch_size}', flush=True)
+            logger.info(f'adjusted batch size is {adjusted_batch_size}')
 
             # use exactly the data generator that is used during validation
             GenCls = generator.__class__
@@ -766,7 +768,7 @@ class HelixerModel(ABC):
             table.append([name, f'{func(f1_scores):.4f}',
                                 f'{func(f1_scores[in_train]):.4f}',
                                 f'{func(f1_scores[~in_train]):.4f}'])
-        print('\n', AsciiTable(table, 'Summary').table, sep='', flush=True)
+        logger.info('\n\n' + AsciiTable(table, 'Summary').table + '\n')
         return np.median(f1_scores[~in_train])
 
     @abstractmethod
@@ -789,7 +791,7 @@ class HelixerModel(ABC):
     def plot_model(model):
         from tensorflow.keras.utils import plot_model
         plot_model(model, to_file='model.png')
-        print('Plotted to model.png', flush=True)
+        logger.info('Plotted to model.png')
         sys.exit()
 
     @staticmethod
@@ -805,9 +807,9 @@ class HelixerModel(ABC):
                     err_samples = np.array(h5_file['/data/err_samples'])
                     n_correct = np.count_nonzero(err_samples == False)
                     if n_correct == 0:
-                        print('WARNING: no fully correct sample found', flush=True)
+                        logger.warning(colored('WARNING: no fully correct sample found'), 'yellow')
                 else:
-                    print('No err_samples dataset found, correct samples will be set to 0', flush=True)
+                    logger.info('No err_samples dataset found, correct samples will be set to 0')
                     n_correct = 0
                 sum_n_correct += n_correct
             return sum_n_correct
@@ -819,9 +821,9 @@ class HelixerModel(ABC):
                     ic_samples = np.array(h5_file['/data/fully_intergenic_samples'])
                     n_fully_ig = np.count_nonzero(ic_samples == True)
                     if n_fully_ig == 0:
-                        print('WARNING: no fully intergenic samples found', flush=True)
+                        logger.warning(colored('WARNING: no fully intergenic samples found', 'yellow'))
                 else:
-                    print('No fully_intergenic_samples dataset found, fully intergenic samples will be set to 0', flush=True)
+                    logger.info('No fully_intergenic_samples dataset found, fully intergenic samples will be set to 0')
                     n_fully_ig = 0
                 sum_n_fully_ig += n_fully_ig
             return sum_n_fully_ig
@@ -865,26 +867,30 @@ class HelixerModel(ABC):
             n_intergenic_test_seqs = get_n_intergenic_seqs(self.h5_tests)
 
         if self.verbose:
-            print('\nData config: ', flush=True)
             if not self.testing:
-                print([dict(x.attrs) for x in self.h5_trains], flush=True)
-                print('\nTraining data/X shape: {}'.format(self.shape_train[:2]), flush=True)
-                print('Validation data/X shape: {}'.format(self.shape_val[:2]), flush=True)
-                print('\nTotal est. training sequences: {}'.format(n_train_seqs), flush=True)
-                print('Total est. val sequences: {}'.format(n_val_seqs), flush=True)
-                print('\nEst. intergenic train/val seqs: {:.2f}% / {:.2f}%'.format(
-                    n_intergenic_train_seqs / n_train_seqs * 100,
-                    n_intergenic_val_seqs / n_val_seqs * 100), flush=True)
-                print('Fully correct train/val seqs: {:.2f}% / {:.2f}%\n'.format(
-                    n_train_correct_seqs / self.shape_train[0] * 100,
-                    n_val_correct_seqs / self.shape_val[0] * 100), flush=True)
+                config_msg = f'{[dict(x.attrs) for x in self.h5_trains]}'
+                msg = (('Training data/X shape: {}\n'
+                        'Validation data/X shape: {}\n'
+                        'Total est. training sequences: {}\n'
+                        'Total est. val sequences: {}\n'
+                        'Est. intergenic train/val seqs: {:.2f}% / {:.2f}%\n'
+                        'Fully correct train/val seqs: {:.2f}% / {:.2f}%').format(
+                       self.shape_train[:2],
+                             self.shape_val[:2],
+                             n_train_seqs, n_val_seqs, (n_intergenic_train_seqs / n_train_seqs * 100),
+                             (n_intergenic_val_seqs / n_val_seqs * 100),
+                             (n_train_correct_seqs / self.shape_train[0] * 100),
+                             (n_val_correct_seqs / self.shape_val[0] * 100)))
             else:
-                print([dict(x.attrs) for x in self.h5_tests], flush=True)
-                print('\nTest data shape: {}'.format(self.shape_test[:2]), flush=True)
-                print('\nIntergenic test seqs: {:.2f}%'.format(
-                    n_intergenic_test_seqs / n_test_seqs_with_intergenic * 100), flush=True)
-                print('Fully correct test seqs: {:.2f}%\n'.format(
-                    n_test_correct_seqs / self.shape_test[0] * 100), flush=True)
+                config_msg = f'{[dict(x.attrs) for x in self.h5_tests]}'
+                msg = ('Test data shape: {}\n'
+                       'Intergenic test seqs: {:.2f}%\n'
+                       'Fully correct test seqs: {:.2f}%'.format(
+                                  self.shape_test[:2],
+                                  n_intergenic_test_seqs / n_test_seqs_with_intergenic * 100,
+                                  n_test_correct_seqs / self.shape_test[0] * 100))
+            logger.info(colored(f'Data config:\n', 'yellow') + config_msg)
+            logger.info(colored(f'Data info:\n', 'yellow') + msg)
 
     def _make_predictions(self, model):
         # loop through batches and continuously expand output dataset as everything might
@@ -894,7 +900,8 @@ class HelixerModel(ABC):
 
         for batch_index in range(len(test_sequence)):
             if self.verbose:
-                print(batch_index, '/', len(test_sequence), end='\r', flush=True)
+                # can't easily be done with a logger, so it will stay as a print statement
+                print(batch_index + 1, '/', len(test_sequence), end='\r', flush=True)
             if not self.only_predictions:
                 input_data = test_sequence[batch_index][0]
             else:
@@ -905,7 +912,7 @@ class HelixerModel(ABC):
                 print(colored('Errors at prediction often result from exhausting the GPU RAM.'
                               'Your RAM requirement depends on subsequence_length x (val_test_)batch_size.'
                               'That and the network size (can be changed during training but not inference).',
-                              'red'), flush=True)
+                              'red'), file=sys.stderr)
                 raise e
             if isinstance(predictions, list):
                 # when we have two outputs, one is for phase
@@ -978,6 +985,7 @@ class HelixerModel(ABC):
         pred_out.close()
         # close model file after extracting meta-data
         h5_model.close()
+        print('\n', flush=True)
 
     def _print_model_info(self, model):
         pwd = os.getcwd()
@@ -987,24 +995,26 @@ class HelixerModel(ABC):
             branch = subprocess.check_output(cmd, stderr=subprocess.STDOUT).strip().decode()
             cmd = ['git', 'describe', '--always']  # show tag or hash if no tag available
             commit = subprocess.check_output(cmd, stderr=subprocess.STDOUT).strip().decode()
-            print(f'Current Helixer branch: {branch} ({commit})', flush=True)
+            logger.info(f'Current Helixer branch: {branch} ({commit})')
         except subprocess.CalledProcessError:
-            print(f'Current Helixer version: {version("helixer")}', flush=True)
+            logger.info(f'Current Helixer version: {version("helixer")}')
 
         try:
             if os.path.isfile(self.load_model_path):
                 cmd = ['md5sum', self.load_model_path]
                 self.loaded_model_hash = subprocess.check_output(cmd).strip().decode()
-                print(f'Md5sum of the loaded model: {self.loaded_model_hash}', flush=True)
+                logger.info(f'Md5sum of the loaded model: {self.loaded_model_hash}')
         except subprocess.CalledProcessError:
-            print('An error occurred while running a subprocess, unable to record loaded_model_hash', flush=True)
+            logger.warning('An error occurred while running a subprocess, unable to record loaded_model_hash')
             self.loaded_model_hash = 'error'
 
-        print(flush=True)
+        logger.info(colored('Model info:', 'yellow'))
         if self.verbose:
-            print(model.summary(), flush=True)
+            # tf model summary automatically prints the summary string and returns None
+            model.summary(print_fn=print(flush=True))  # make sure this is flushed to stdout
+            print(flush=True)
         else:
-            print('Total params: {:,}'.format(model.count_params()), flush=True)
+            logger.info('Total params: {:,}\n'.format(model.count_params()))
         os.chdir(pwd)  # return to previous directory
 
     def run(self):
@@ -1042,7 +1052,7 @@ class HelixerModel(ABC):
         if not self.testing:
             strategy = tf.distribute.MirroredStrategy(
                 cross_device_ops=tf.distribute.ReductionToOneDevice(reduce_to_device="gpu:0"))
-            print('Number of devices: {}'.format(strategy.num_replicas_in_sync), flush=True)
+            logger.info('Number of devices: {}'.format(strategy.num_replicas_in_sync))
             # SunGridEngine doesn't set visible devices properly sometimes, so one should use
             # --gpu-id <id> when using only one GPU to train
             if strategy.num_replicas_in_sync > 1:
@@ -1067,7 +1077,7 @@ class HelixerModel(ABC):
             assert self.load_model_path.endswith('.h5'), 'Need a h5 model file'
 
             strategy = tf.distribute.MirroredStrategy()
-            print('Number of devices: {}'.format(strategy.num_replicas_in_sync), flush=True)
+            logger.info('Number of devices: {}'.format(strategy.num_replicas_in_sync))
             if strategy.num_replicas_in_sync > 1:
                 with strategy.scope():
                     model = load_model_strategy()
@@ -1087,7 +1097,8 @@ class HelixerModel(ABC):
                                                     print_to_stdout=True, calc_H=self.calculate_uncertainty)
             else:
                 if os.path.isfile(self.prediction_output_path):
-                    print(f'{self.prediction_output_path} already exists and will be overwritten.', flush=True)
+                    logger.info(colored(f'{self.prediction_output_path} already exists and will be overwritten.',
+                                        'yellow'))
                 self._make_predictions(model)
             for h5_test in self.h5_tests:
                 h5_test.close()

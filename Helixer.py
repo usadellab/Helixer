@@ -8,11 +8,14 @@ import h5py
 import tempfile
 import subprocess
 from termcolor import colored
+from pprint import pformat
+import logging.config
 
 from helixer.core.scripts import ParameterParser
 from helixer.core.data import prioritized_models, report_if_current_not_best, identify_current, set_model_path
 from helixer.prediction.HybridModel import HybridModel
 from helixer.export.exporter import HelixerFastaToH5Controller
+from helixer.core.helpers import get_log_dict
 
 
 class HelixerParameterParser(ParameterParser):
@@ -174,7 +177,9 @@ class HelixerParameterParser(ParameterParser):
 
 
 def main():
-    print(f'Starting Helixer, using python version {sys.version}', flush=True)
+    logging.config.dictConfig(get_log_dict())
+    logger = logging.getLogger('HelixerLogger')
+    logger.info(f'Starting Helixer, using python version {sys.version}')
     helixer_post_bin = 'helixer_post_bin'
     start_time = time.time()
     pp = HelixerParameterParser('config/helixer_config.yaml')
@@ -182,14 +187,15 @@ def main():
     args.overlap = not args.no_overlap  # minor overlapping is a far better default for inference. Thus, this hack.
     # before we start, check if helixer_post_bin will (presumably) be able to run
     # first, is it there
-    print(colored(f'Testing whether {helixer_post_bin} is correctly installed', 'green'), flush=True)
+    logger.info(colored('\nHelixer.py config:\n', 'yellow') + f'{pformat(vars(args))}\n')
+    logger.info(colored(f'Testing whether {helixer_post_bin} is correctly installed', 'green'))
     if not shutil.which(helixer_post_bin):
         print(colored(f'\nError: {helixer_post_bin} not found in $PATH, this is required for Helixer.py to complete.\n',
                       'red'),
               file=sys.stderr)
         print('Installation instructions: https://github.com/TonyBolger/HelixerPost, the lzf library is OPTIONAL',
               file=sys.stderr)
-        print('Remember to add the compiled binary to a folder in your PATH variable.')
+        print('Remember to add the compiled binary to a folder in your PATH variable.', file=sys.stderr)
         sys.exit(1)
     else:
         run = subprocess.run([helixer_post_bin])
@@ -208,19 +214,21 @@ def main():
             pass
         os.remove(test_file)
     except Exception as e:
-        print(colored(f'checking if a random test file ({test_file}) can be written in the output directory', 'yellow'), flush=True)
+        print(colored(f'checking if a random test file ({test_file}) can be written in the output directory',
+                      'yellow'), file=sys.stderr)
         if not os.path.isdir(out_dir):
             # the 'file not found error' for the directory when the user is thinking
             # "of course it's not there, I want to crete it"
             # tends to confuse..., so make it obvious here
             print(colored(f'the output directory {out_dir}, needed to write the '
-                  f'output file {args.gff_output_path}, is absent, inaccessible, or not a directory', 'red'), flush=True)
+                  f'output file {args.gff_output_path}, is absent, inaccessible, or not a directory', 'red'),
+                  file=sys.stderr)
         raise e
 
-    print(colored('Helixer.py config loaded. Starting FASTA to H5 conversion.', 'green'), flush=True)
+    logger.info(colored('Starting FASTA to H5 conversion.', 'green'))
     # generate the .h5 file in a temp dir, which is then deleted
     with tempfile.TemporaryDirectory(dir=args.temporary_dir) as tmp_dirname:
-        print(f'storing temporary files under {tmp_dirname}', flush=True)
+        logger.info(f'Storing temporary files under {tmp_dirname}')
         tmp_genome_h5_path = os.path.join(tmp_dirname, f'tmp_species_{args.species}.h5')
         tmp_pred_h5_path = os.path.join(tmp_dirname, f'tmp_predictions_{args.species}.h5')
 
@@ -232,7 +240,7 @@ def main():
 
         msg = 'with' if args.overlap else 'without'
         msg = 'FASTA to H5 conversion done. Starting neural network prediction ' + msg + ' overlapping.'
-        print(colored(msg, 'green'), flush=True)
+        logger.info(colored(msg, 'green'))
 
         hybrid_model_args = [
             '--verbose',
@@ -249,7 +257,7 @@ def main():
         model = HybridModel(cli_args=hybrid_model_args)
         model.run()
 
-        print(colored('Neural network prediction done. Starting post processing.', 'green'), flush=True)
+        logger.info(colored('Neural network prediction done. Starting post processing.', 'green'))
 
         # call to HelixerPost, has to be in PATH
         helixerpost_cmd = [helixer_post_bin, tmp_genome_h5_path, tmp_pred_h5_path]
@@ -259,11 +267,11 @@ def main():
         helixerpost_out = subprocess.run(helixerpost_cmd)
         if helixerpost_out.returncode == 0:
             run_time = time.time() - start_time
-            print(colored(f'\nHelixer successfully finished the annotation of {args.fasta_path} '
-                          f'in {run_time / (60 * 60):.2f} hours. '
-                          f'GFF file written to {args.gff_output_path}.', 'green'), flush=True)
+            logger.info(colored(f'\nHelixer successfully finished the annotation of {args.fasta_path} '
+                                f'in {run_time / (60 * 60):.2f} hours. '
+                                f'GFF file written to {args.gff_output_path}.', 'green'))
         else:
-            print(colored('\nAn error occurred during post processing. Exiting.', 'red'), flush=True)
+            print(colored('\nAn error occurred during post processing. Exiting.', 'red'), file=sys.stderr)
 
 
 if __name__ == '__main__':

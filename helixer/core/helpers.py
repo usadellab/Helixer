@@ -1,4 +1,6 @@
 import numpy as np
+import logging
+import sys
 
 # some helpers for handling / sorting / or checking sort of our h5 files
 def mk_seqonly_keys(h5):
@@ -147,7 +149,32 @@ def divvy_by_confidence(one_class_chunk, step_key, pad=5, stability_threshold=0.
             end_of_last_yield = end
             cdiff_at_last_yield = cumulative_diffs[end]
 
+
 def file_stem(path):
     """Returns the file name without extension"""
     import os
     return os.path.basename(path).split('.')[0]
+
+
+def get_log_dict():
+    return {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "custom": {
+                "format": "%(asctime)s, %(levelname).1s: %(message)s",
+                "datefmt": "%Y-%m-%d %H:%M:%S",
+            }
+        },
+        "handlers": {
+            "console": {"class": "logging.StreamHandler",
+                        "formatter": "custom",
+                        "level": "INFO",
+                        "stream": sys.stdout},
+        },
+        "loggers": {
+            "HelixerLogger": {"level": "INFO",
+                              "handlers": ["console"],
+                              "propagate": False},
+        }
+    }

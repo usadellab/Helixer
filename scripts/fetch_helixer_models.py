@@ -1,13 +1,18 @@
 #! /usr/bin/env python3
 
 import argparse
+import logging.config
 from collections import defaultdict
+from pprint import pformat
+from termcolor import colored
+
 from helixer.core.data import prioritized_models, fetch_and_organize_models, set_model_path
+from helixer.core.helpers import get_log_dict
 
 
 def main(lineage=None, best_only=True, custom_path=None):
     """downloads (best) model(s) for indicated lineage"""
-    print('Fetching Helixer models...')
+    logger.info('Fetching Helixer models...')
     if best_only:
         end = 1
     else:
@@ -32,4 +37,7 @@ if __name__ == "__main__":
                                                                  'to use only the best model for a lineage by default.')
     parser.add_argument('-c', '--custom-path', type=str, help='custom path to download models to')
     args = parser.parse_args()
+    logging.config.dictConfig(get_log_dict())
+    logger = logging.getLogger('HelixerLogger')
+    logger.info(colored('\nfetch_helixer_models.py config:\n', 'yellow') + f'{pformat(vars(args))}')
     main(args.lineage, best_only=not args.all, custom_path=args.custom_path)

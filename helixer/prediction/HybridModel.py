@@ -1,10 +1,13 @@
 #! /usr/bin/env python3
 import tensorflow as tf
+import logging.config
+import sys
 
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import (Conv1D, LSTM, Dense, Bidirectional, Dropout, Reshape,
                                      Activation, Input, BatchNormalization)
 from helixer.prediction.HelixerModel import HelixerModel, HelixerSequence
+from helixer.core.helpers import get_log_dict
 
 
 class HybridSequence(HelixerSequence):
@@ -129,5 +132,8 @@ class HybridModel(HelixerModel):
 
 
 if __name__ == '__main__':
+    logging.config.dictConfig(get_log_dict())
+    logger = logging.getLogger('HelixerLogger')
+    logger.info(f'Starting Helixer, using python version {sys.version}')
     model = HybridModel()
     model.run()

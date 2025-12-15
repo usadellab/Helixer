@@ -1,6 +1,6 @@
 """convert cleaned-db schema to numeric values describing gene structure"""
 import time
-
+import logging
 import geenuff.base.types
 import numpy as np
 import math
@@ -10,6 +10,7 @@ from abc import ABC, abstractmethod
 
 from geenuff.base import types
 
+logger = logging.getLogger('HelixerLogger')
 
 AMBIGUITY_DECODE = {
     'C': [1., 0., 0., 0.],
@@ -135,7 +136,7 @@ class SequenceNumerifier(Numerifier):
 
         # put everything together
         data = {'plus': data_plus, 'minus': data_minus}
-        print(f'Numerification of {self.start}-{self.end} of the sequence of {self.coord.seqid} '
+        logger.info(f'Numerification of {self.start}-{self.end} of the sequence of {self.coord.seqid} '
               f'took {time.time() - start_time:.2f} secs')
         return data
 
@@ -462,7 +463,7 @@ class SplitFinder:
         self.coord_length = coord_length
         self.chunk_size = chunk_size
         self.splits = tuple(self._find_splits())
-        print(len(self.splits), 'expected num of chunks to write in', self.write_by, 'bases to hdf5')
+        logger.info(f'{len(self.splits)} expected num of chunks to write in {self.write_by} bases to hdf5')
         self.relative_h5_coords = tuple(self._get_rel_h5_coords_for_splits())
 
     @property

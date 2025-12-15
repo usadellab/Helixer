@@ -1,8 +1,12 @@
 #! /usr/bin/env python3
 import argparse
+import logging.config
+from pprint import pformat
+from termcolor import colored
 
 from helixer.core.scripts import ExportParameterParser
 from helixer.export.exporter import HelixerFastaToH5Controller
+from helixer.core.helpers import get_log_dict
 
 
 if __name__ == '__main__':
@@ -18,6 +22,9 @@ if __name__ == '__main__':
                                     'divisible by subsequence-length; needs to be equal to or larger than subsequence '
                                     'length; for lower memory consumption, consider setting a lower number')
     args = pp.get_args()
+    logging.config.dictConfig(get_log_dict())
+    logger = logging.getLogger('HelixerLogger')
+    logger.info(colored('\nfasta2h5.py config:\n', 'yellow') + f'{pformat(vars(args))}\n')
     controller = HelixerFastaToH5Controller(args.fasta_path, args.h5_output_path)
     controller.export_fasta_to_h5(chunk_size=args.subsequence_length, compression=args.compression,
                                   multiprocess=not args.no_multiprocess, species=args.species, write_by=args.write_by)
