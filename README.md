@@ -9,7 +9,7 @@ is under ongoing development and improvements.
 ## Table of contents
 1. [Goal](#goal)
 2. [Web tool](#web-tool)
-3. [Install](#install)
+3. [Installation](#install)
 4. [Network architecture](#helixers-architecture)
 5. [Example usage](#example-usageinference-gene-calling)
 6. [Expert mode](#expert-mode)
@@ -33,11 +33,14 @@ You can then skip the installation instructions down below.
 > genome exceeds the file size you could split your genome by chromosome
 > or submit a compressed file ('.gz' '.zip' and '.bz2' are supported)
 
-## Install
+## Installation
 The installation time depends on the installation method you are using (e.g.
 [docker/singularity](#via-docker--singularity-recommended) or
 [manual installation](#manual-installation)(only for Linux)) and your experience in using GitHub, Python and
 CUDA. The time it takes a decently experienced user to install Helixer is 20-30 minutes.
+
+There is the possibility to install Helixer on macOS which requires a few adjustments. Instructions can be
+found [here](docs/helixer_on_macOS.md).
 
 ### GPU requirements
 For realistically sized datasets, a GPU will be necessary
