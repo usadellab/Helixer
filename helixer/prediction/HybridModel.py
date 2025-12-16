@@ -2,6 +2,7 @@
 import tensorflow as tf
 import logging.config
 import sys
+from termcolor import colored
 
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import (Conv1D, LSTM, Dense, Bidirectional, Dropout, Reshape,
@@ -134,6 +135,6 @@ class HybridModel(HelixerModel):
 if __name__ == '__main__':
     logging.config.dictConfig(get_log_dict())
     logger = logging.getLogger('HelixerLogger')
-    logger.info(f'Starting Helixer, using python version {sys.version}')
+    logger.info(colored(f'Starting Helixer, using python version {sys.version}', 'green'))
     model = HybridModel()
     model.run()

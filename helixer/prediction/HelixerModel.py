@@ -895,6 +895,7 @@ class HelixerModel(ABC):
     def _make_predictions(self, model):
         # loop through batches and continuously expand output dataset as everything might
         # not fit in memory
+        start_time = time.time()
         pred_out = h5py.File(self.prediction_output_path, 'w')
         test_sequence = self.gen_test_data()
 
@@ -985,7 +986,7 @@ class HelixerModel(ABC):
         pred_out.close()
         # close model file after extracting meta-data
         h5_model.close()
-        print('\n', flush=True)
+        logger.info('prediction took {:.2f} minutes\n'.format(int(time.time() - start_time) / 60))
 
     def _print_model_info(self, model):
         pwd = os.getcwd()

@@ -179,7 +179,7 @@ class HelixerParameterParser(ParameterParser):
 def main():
     logging.config.dictConfig(get_log_dict())
     logger = logging.getLogger('HelixerLogger')
-    logger.info(f'Starting Helixer, using python version {sys.version}')
+    logger.info(colored(f'Starting Helixer, using python version {sys.version}', 'green'))
     helixer_post_bin = 'helixer_post_bin'
     start_time = time.time()
     pp = HelixerParameterParser('config/helixer_config.yaml')
