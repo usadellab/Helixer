@@ -479,10 +479,11 @@ if __name__ == "__main__":
                         required=True)
     parser.add_argument('-b', '--bam', help='sorted (and indexed) bam file. Omit to only score existing coverage.',
                         nargs='+', required=True)
-    parser.add_argument('--dataset-prefix', help="prefix for the datasets file to store the resulting coverage "
-                                                 "current expected values are 'rnaseq', or 'cage' (default). "
-                                                 "datasets will be /evaluation/{prefix}_(spliced_)coverage ",
-                        default='cage')
+    parser.add_argument('--dataset-prefix',
+                        help="prefix for the datasets file to store the resulting coverage "
+                             "current expected values are 'rnaseq' (default), 'cage', or 'atacseq'; "
+                             "datasets will be /evaluation/{prefix}_(spliced_)coverage ",
+                        default='rnaseq')
     parser.add_argument('--first-read-is-sense-strand',
                         help='first strand is sense strand, e.g. reads are not from a typical dUTP protocol',
                         action='store_true')
@@ -490,7 +491,8 @@ if __name__ == "__main__":
                         help='second strand is sense strand, e.g. reads ARE from a typical dUTP protocol')
     parser.add_argument('--unstranded', action='store_true',
                         help='reads are not stranded, final "strand" will simply arbitrarily match read strand')
-    parser.add_argument('--threads', default=8, help="how many threads, set to a value <= 1 to not use multiprocessing",
+    parser.add_argument('--threads', default=8,
+                        help="how many threads, set to a value <= 1 to not use multiprocessing",
                         type=int)
     parser.add_argument('--shift', action='store_true',
                         help='shift reads +4 (+ strand) or -5 (- strand) base pairs as is typically done for ATAC-seq '

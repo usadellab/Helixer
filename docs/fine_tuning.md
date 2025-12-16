@@ -438,7 +438,7 @@ python3 <path_to>/Helixer/helixer/evaluation/add_ngs_coverage.py \
 | --second-read-is-sense-strand | False   | Add to define that the second strand is the sense strand, e.g. reads ARE from a typical dUTP protocol                                                                                    |
 | -b/-bam                       | /       | Sorted (and indexed) bam file(s). Coverage to be added.                                                                                                                                  |
 | -d/--h5-data                  | /       | H5 data file with assembly (result of `fasta2h5.py`) and annotation information (result of `import2geenuff.py` and `geenuff2h5.py`) to which evaluation coverage will be added           |
-| --dataset-prefix              | cage    | Prefix for the datasets file to store the resulting coverage, i.e. 'rnaseq', 'cage', ... ; datasets will be: `/evaluation/{prefix}_coverage` and `/evaluation/{prefix}_spliced_coverage` |
+| --dataset-prefix              | rnaseq  | Prefix for the datasets file to store the resulting coverage, i.e. 'rnaseq', 'cage', ... ; datasets will be: `/evaluation/{prefix}_coverage` and `/evaluation/{prefix}_spliced_coverage` |
 | --threads                     | 8       | How many threads to use, set to a value <= 1 to not use multiprocessing. Hint: if you have multiple `.bam` files, you could set the number to the amount of bam files                    |
 
 ###### Parameters - additional information

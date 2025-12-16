@@ -1,10 +1,9 @@
 # Using Helixer on macOS
-Helixer is primarily designed to run on Linux which will remain the main focus.
-However, due to recent requests for Apple support, this document provides instructions to install Helixer
-manually on macOS, as Docker and Apptainer/Singularity are Linux based and don't have a dedicated image for
-macOS with MPS support.   
+This document provides instructions to install Helixer
+manually on macOS, as Docker and Apptainer/Singularity are Linux based and don't have a
+dedicated image for macOS with MPS support.   
 Helixer installation, inference and training was tested on a Mac Studio 2025 M3 Ultra 80-Core GPU.  
-Please note that these instructions are all experimental, but should work in most cases.
+Please note that these instructions are all experimental, but they should work in most cases.
 
 ## 1. Install Helixer
 As a prerequisite install Python Version 3.10:
