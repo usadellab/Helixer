@@ -13,7 +13,7 @@ cycler==0.12.1
 dill==0.3.8
 #dustdas @ git+https://github.com/gglyptodon/dustdas@d95083163eae361853ad8ef967ed30224a9695ea
 exceptiongroup==1.2.0
-filelock==3.11.0
+filelock==3.20.1
 flatbuffers==24.3.7
 fonttools==4.50.0
 gast==0.5.4
