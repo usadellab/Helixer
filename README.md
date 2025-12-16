@@ -43,7 +43,8 @@ There is the possibility to install Helixer on macOS which requires a few adjust
 found [here](docs/helixer_on_macOS.md).
 
 ### GPU requirements
-For realistically sized datasets, a GPU will be necessary
+For realistically sized datasets, an Nvidia GPU or an Apple Silicon GPU (M1/M2/M3) using
+Apple Metal Performance Shaders (MPS) GPU acceleration (beta support) will be necessary
 for acceptable performance.
 
 The example below and all provided models should run on 
