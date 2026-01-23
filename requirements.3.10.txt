@@ -49,7 +49,7 @@ pandas==2.2.1
 pillow==10.2.0
 pluggy==1.4.0
 prettytable==3.10.0
-protobuf==4.25.3
+protobuf==7.34.0rc1
 psutil==5.9.8
 pyasn1==0.5.1
 pyasn1-modules==0.3.0
