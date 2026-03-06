@@ -34,7 +34,7 @@ keras==2.15.0
 keras-layer-normalization==0.16.0
 kiwisolver==1.4.5
 libclang==18.1.1
-Markdown==3.6
+Markdown==3.8.1
 MarkupSafe==2.1.5
 matplotlib==3.8.3
 ml-dtypes==0.3.2
