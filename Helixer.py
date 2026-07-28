@@ -17,6 +17,7 @@ from helixer.core.data import prioritized_models, report_if_current_not_best, id
 from helixer.prediction.HybridModel import HybridModel
 from helixer.export.exporter import HelixerFastaToH5Controller
 from helixer.core.helpers import get_log_dict
+from helixer.core.sequence_selection import parse_manifest, read_fasta, write_report, write_selected_fasta
 
 
 class HelixerParameterParser(ParameterParser):
@@ -27,6 +28,12 @@ class HelixerParameterParser(ParameterParser):
         self.io_group.add_argument('--species', type=str, help='Species name.')
         self.io_group.add_argument('--temporary-dir', type=str,
                                    help='use supplied (instead of system default) for temporary directory')
+        self.io_group.add_argument('--sequence-selection', type=str,
+                                   help='TSV with exactly one true/false decision per FASTA seqid. Selection changes annotation scope.')
+        self.io_group.add_argument('--selection-report', type=str,
+                                   help='TSV path for exact full/selected workload and provenance accounting.')
+        self.io_group.add_argument('--selection-only', action='store_true',
+                                   help='Validate selection and write its report without exporter, model, or post-processing.')
 
         self.data_group.add_argument('--subsequence-length', type=int,
                                      help='How to slice the genomic sequence. Set moderately longer than length of '
@@ -106,6 +113,9 @@ class HelixerParameterParser(ParameterParser):
             'edge_threshold': 0.1,
             'peak_threshold': 0.8,
             'min_coding_length': 60,
+            'sequence_selection': None,
+            'selection_report': None,
+            'selection_only': False,
         }
         self.defaults = {**self.defaults, **helixer_defaults}
 
@@ -121,6 +131,12 @@ class HelixerParameterParser(ParameterParser):
         return os.path.join(model_path, lineage, current_model)
 
     def check_args(self, args: argparse.Namespace) -> None:
+
+        if args.selection_only:
+            assert args.sequence_selection is not None, '--selection-only requires --sequence-selection'
+            assert args.selection_report is not None, '--selection-only requires --selection-report'
+            assert args.subsequence_length is not None, '--selection-only requires --subsequence-length'
+            return
 
         if args.model_filepath is not None:
             print(f'overriding the lineage based model, '
@@ -191,6 +207,15 @@ def main() -> None:
     pp = HelixerParameterParser('config/helixer_config.yaml')
     args = pp.get_args()
     args.overlap = not args.no_overlap  # minor overlapping is a far better default for inference. Thus, this hack.
+    records = decisions = None
+    if args.sequence_selection:
+        records = read_fasta(args.fasta_path)
+        decisions = parse_manifest(args.sequence_selection, records)
+        if args.selection_report:
+            write_report(args.selection_report, records, decisions, args.subsequence_length, args.sequence_selection)
+        if args.selection_only:
+            logger.info('Selection-only validation complete; no exporter, model, or post-processing was launched.')
+            return
     # before we start, check if helixer_post_bin will (presumably) be able to run
     # first, is it there
     logger.info(colored('\nHelixer.py config:\n', 'yellow') + f'{pformat(vars(args))}\n')
@@ -238,7 +263,11 @@ def main() -> None:
         tmp_genome_h5_path = os.path.join(tmp_dirname, f'tmp_species_{args.species}.h5')
         tmp_pred_h5_path = os.path.join(tmp_dirname, f'tmp_predictions_{args.species}.h5')
 
-        controller = HelixerFastaToH5Controller(args.fasta_path, tmp_genome_h5_path)
+        fasta_path = args.fasta_path
+        if records is not None and decisions is not None:
+            fasta_path = os.path.join(tmp_dirname, 'selected_sequences.fa')
+            write_selected_fasta(fasta_path, records, decisions)
+        controller = HelixerFastaToH5Controller(fasta_path, tmp_genome_h5_path)
         # hard coded subsequence length due to how the models have been created
         controller.export_fasta_to_h5(chunk_size=args.subsequence_length, compression=args.compression,
                                       multiprocess=not args.no_multiprocess, species=args.species,
