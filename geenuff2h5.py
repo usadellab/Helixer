@@ -59,4 +59,4 @@ if __name__ == '__main__':
     logger = logging.getLogger('HelixerLogger')
     logger.info(colored('\ngeenuff2h5.py config:\n', 'yellow') + f'{pformat(vars(args))}\n')
     main(args)
-    logger.info(f'\nFinished writing {args.h5_output_path}.')
+    logger.info(f'Finished writing {args.h5_output_path}.')

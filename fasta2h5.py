@@ -31,4 +31,4 @@ if __name__ == '__main__':
     controller = HelixerFastaToH5Controller(args.fasta_path, args.h5_output_path)
     controller.export_fasta_to_h5(chunk_size=args.subsequence_length, compression=args.compression,
                                   species=args.species, write_by=args.write_by)
-    logger.info(f'\nFinished writing {args.h5_output_path}.')
+    logger.info(f'Finished writing {args.h5_output_path}.')

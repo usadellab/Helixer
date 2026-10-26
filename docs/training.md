@@ -259,6 +259,17 @@ perhaps better than random, but poorly. It practically
 needs more data and more phylogenetic variation in the dataset (different species),
 as well as for the network to be larger and trained for a longer period of time.
 
+### Scores by position and gene length
+`helixer/evaluation/binned_eval.py` breaks the scores down by base position within the subsequence
+(edge effects, with and without `--overlap`) and by gene length, and writes them as CSV files:
+```shell script
+mkdir -p example/binned_eval
+python helixer/evaluation/binned_eval.py \
+  -d example/h5s/Ostreococcus_lucimarinus/test_data.h5 \
+  -p example/Ostreococcus_lucimarinus_predictions.h5 -o example/binned_eval
+```
+The notebook [binned_evaluation.ipynb](binned_evaluation.ipynb) shows how to plot and compare several runs.
+
 ## Practical considerations
 While the above covers technically how to train a model, here are some
 tips on how to make it a _good_ model. 
