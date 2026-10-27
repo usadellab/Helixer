@@ -30,8 +30,10 @@ python3 helixer/prediction/DilatedCNNModel.py  \
   --test-data example/test/test_data.h5 --eval
 ```
 
-## visualization
-(have not actually tested)
+## scores by position and gene length
+`docs/binned_evaluation.ipynb` plots the output; not tested for a DilatedCNN prediction
 ```
-python3 helixer/visualization/visualize.py --predictions example/mpusillaCCMP1545_predictions.h5 --test-data example/test/test_data.h5
+mkdir -p example/binned_eval
+python3 helixer/evaluation/binned_eval.py -d example/test/test_data.h5 \
+  -p example/mpusillaCCMP1545_predictions.h5 -o example/binned_eval
 ```

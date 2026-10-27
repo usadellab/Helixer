@@ -14,7 +14,7 @@ brew install python@3.10
 ### 1.1
 Download Helixer:
 ````bash
-git clone https://github.com/weberlab-hhu/Helixer.git
+git clone https://github.com/usadellab/Helixer.git
 cd Helixer
 ````
 Edit `requirements.3.10.txt`:

@@ -1,4 +1,4 @@
-[![Python CI](https://github.com/weberlab-hhu/Helixer/actions/workflows/python-app.yml/badge.svg)](https://github.com/weberlab-hhu/Helixer/actions/workflows/python-app.yml)   
+[![Python CI](https://github.com/usadellab/Helixer/actions/workflows/python-app.yml/badge.svg)](https://github.com/usadellab/Helixer/actions/workflows/python-app.yml)   
 ![](img/helixer.svg)   
 Helixer is a tool for structural genome annotation. It utilizes Deep
 Neural Networks and a Hidden Markov Model to directly provide primary

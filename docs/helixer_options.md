@@ -166,24 +166,28 @@ written when given; very large, roughly 230 bytes per bp) and a YAML config file
 file template; after editing, it can be passed to Helixer.py with `--post-config-path`. The
 [HelixerPost README](https://github.com/usadellab/HelixerPost#parameters) describes the config
 options in more detail.
+Detailed output, i.e. per-sequence ratings, progress lines and the decoded hidden Markov model regions,
+is only printed by `helixer_post_bin --verbose` (HelixerPost 0.4.0 or newer) in the
+[3-step workflow](../README.md#3-step-inference), which keeps the genome and predictions h5 files, so the post-processing can be
+rerun without a new prediction.
 
 ## 5. import2geenuff.py options
 (see [GeenuFF repository](https://github.com/usadellab/GeenuFF/tree/main))
 ### Configuration parameters
-| Parameter     | Default           | Explanation                                                                                             |
-|:--------------|:------------------|:--------------------------------------------------------------------------------------------------------|
-| --basedir     | /                 | Organized output (& input) directory. If this is not set, all four custom input parameters must be set. |
-| --config-file | config/import.yml | .yml file containing configuration parameters                                                           |
+| Parameter     | Default           | Explanation                                                                                                                                                                                                  |
+|:--------------|:------------------|:-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| --basedir     | /                 | Organized output (& input) directory. If this is not set, --gff3, --fasta and --db-path must be set.                                                                                                         |
+| --config-file | config/import.yml | YAML file setting `min_intron_length` (default 20) and `min_cds_length` (default 60), the intron and spliced CDS lengths in bp below which a transcript is masked; the defaults apply without the file       |
 
 ### Override default with custom parameters
-These parameters are **required** if ``--basedir`` is not set.
+--gff3, --fasta and --db-path are **required** if ``--basedir`` is not set.
 
-| Parameter  | Default                                               | Explanation                                                                    |
-|:-----------|:------------------------------------------------------|:-------------------------------------------------------------------------------|
-| --gff3     | /                                                     | GFF3 formatted file to parse / standardize                                     |
-| --fasta    | /                                                     | Fasta file to parse standardize (has to be the same assembly as the GFF3 file) |
-| --db-path  | /                                                     | Output path of the GeenuFF database                                            |
-| --log-file | basedir/output/import.log (when ``--basedir`` is set) | Output path for import2geenuff log file; it ends with the import summary       |
+| Parameter  | Default                                                                                 | Explanation                                                                    |
+|:-----------|:----------------------------------------------------------------------------------------|:-------------------------------------------------------------------------------|
+| --gff3     | /                                                                                       | GFF3 formatted file to parse / standardize                                     |
+| --fasta    | /                                                                                       | Fasta file to parse standardize (has to be the same assembly as the GFF3 file) |
+| --db-path  | basedir/output/\<species\>.sqlite3 (when ``--basedir`` is set)                          | Output path of the GeenuFF database; must end in .sqlite3                      |
+| --log-file | beside the database, named after it (e.g. genome.sqlite3 -> genome_geenuff_import.log)  | Output path for import2geenuff log file; it ends with the import summary       |
 
 ### Possible genome attribute parameters
 | Parameter       | Default | Explanation                                    |

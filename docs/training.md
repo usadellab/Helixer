@@ -57,6 +57,8 @@ files before import (see the GeenuFF
 | `check_seqids.py`            | first, on every genome: checks that the GFF3 sequence IDs are FASTA IDs; where they are not, the import fails                                                                                                                        |
 | `rename_gff_seqids.py`       | where the IDs differ because the files come from different sources (e.g. a FASTA file renamed on upload to NCBI): pairs them by ID, header name or sequence, checked against the start and stop codons and splice sites of the genes |
 | `add_gene_lines.py`          | for GFF3 files of gene predictors such as AUGUSTUS, BRAKER or Tiberius, whose transcripts have no gene lines or `Parent=` attributes, which stops the import                                                                         |
+| `add_transcript_lines.py`    | where exon, CDS and UTR lines name the gene itself as `Parent` (e.g. some MAKER files): puts them under a transcript of the gene; otherwise such genes count as non-coding or are masked                                             |
+| `rebuild_exons.py`           | only where the import warns about `cds_outside_exons` for more than 5% of the coding transcripts, i.e. the exon lines cover the UTRs only: rebuilds the exons from the exon, CDS and UTR lines                                       |
 | `filter_sequence_lengths.py` | to remove organelle genomes and small unplaced scaffolds before import; organelle genes give little training data that fits a nuclear model, and their many overlaps are mostly masked                                               |
 
 #### Checking the import summary

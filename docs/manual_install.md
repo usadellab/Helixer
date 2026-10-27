@@ -3,7 +3,7 @@
 First, download and checkout the latest release
 ```shell script
 # from a directory of your choice
-git clone https://github.com/weberlab-hhu/Helixer.git
+git clone https://github.com/usadellab/Helixer.git
 cd Helixer
 # git checkout dev # v0.2.0
 ```
