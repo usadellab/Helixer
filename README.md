@@ -208,7 +208,7 @@ HybridModel.py --load-model-path $HOME/.local/share/Helixer/models/land_plant/la
      --test-data Arabidopsis_lyrata.h5 --overlap --val-test-batch-size 32 -v
 
 # helixer_post_bin [OPTIONS] <genome.h5> <predictions.h5> <output.gff3>
-# (all options are optional; the values below are the defaults)
+# (all arguments are optional; the values below are the defaults; the files are still positional arguments)
 helixer_post_bin --window-size 100 --edge-threshold 0.1 --peak-threshold 0.8 --min-coding-length 60 \
   --min-intron-length 50 --min-intron-length-u12 30 \
   Arabidopsis_lyrata.h5 predictions.h5 Arabidopsis_lyrata_chromosome8_helixer.gff3

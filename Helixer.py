@@ -79,6 +79,10 @@ class HelixerParameterParser(ParameterParser):
                                           'quality if overlapping is enabled. Smaller values may lead to better '
                                           'predictions but will take longer. Has to be smaller than subsequence_length '
                                           '(Default is subsequence_length * 3 / 4)')
+        self.pred_group.add_argument('--compression-threads', type=int,
+                                     help='number of CPU threads compressing the predictions while the GPU predicts '
+                                          'the next batches (only with --compression gzip); 0 compresses in the main '
+                                          'thread after each batch. (Default is 4.)')
 
         self.post_group = self.parser.add_argument_group("Post-processing parameters")
         self.post_group.add_argument('--window-size', type=int,
@@ -124,6 +128,7 @@ class HelixerParameterParser(ParameterParser):
             'no_overlap': False,
             'overlap_offset': None,
             'overlap_core_length': None,
+            'compression_threads': 4,
             'window_size': 100,
             'edge_threshold': 0.1,
             'peak_threshold': 0.8,
@@ -198,10 +203,11 @@ class HelixerParameterParser(ParameterParser):
         else:
             args.overlap_core_length = int(args.subsequence_length * 3 / 4)
 
-        # checked here, as helixer_post_bin would only reject them after the neural network prediction
-        for name in ('min_intron_length', 'min_intron_length_u12', 'post_threads'):
+        # checked here, as HybridModel.py and helixer_post_bin would only reject them after the FASTA conversion
+        # threads for h5 file writing pre-evaluated here as well
+        for name in ('compression_threads', 'min_intron_length', 'min_intron_length_u12', 'post_threads'):
             value = getattr(args, name)
-            assert value >= 0, f'--{name.replace("_", "-")} must not be negative, got {value}'
+            assert value >= 0, f'--{name.replace("_", "-")} must be positive, got {value}'
         if args.post_config_path:
             assert os.path.isfile(args.post_config_path), \
                 f'--post-config-path {args.post_config_path} does not exist or is not a file'
@@ -299,7 +305,8 @@ def main() -> None:
             '--val-test-batch-size', str(args.batch_size),
             '--overlap-offset', str(args.overlap_offset),
             '--core-length', str(args.overlap_core_length),
-            '--compression', str(args.compression)
+            '--compression', str(args.compression),
+            '--compression-threads', str(args.compression_threads)
         ]
         if args.overlap:
             hybrid_model_args.append('--overlap')

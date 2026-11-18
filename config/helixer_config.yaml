@@ -4,6 +4,7 @@
 # species_category: 'vertebrate'  # one of 'vertebrate', 'land_plant' or 'fungi'
 #
 # compression: 'gzip'  # one of 'gzip' or 'lzf'
+# compression_threads: 4  # threads compressing the predictions (gzip only); 0 compresses in the main thread
 #
 # window_size: 100
 # edge_threshold: 0.1

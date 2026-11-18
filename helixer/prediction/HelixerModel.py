@@ -1,12 +1,15 @@
 from abc import ABC, abstractmethod
 import ast
+from collections import deque
 from collections.abc import Iterable
+from concurrent.futures import Future, ThreadPoolExecutor
 import os
 import sys
 import io
 import contextlib
 import time
 import glob
+import zlib
 import h5py
 import numcodecs
 import argparse
@@ -507,6 +510,8 @@ class HelixerSequence(Sequence):
 
 
 class HelixerModel(ABC):
+    GZIP_LEVEL = 4  # h5py's default gzip level, used for the predictions
+
     def __init__(self, cli_args: list[str] | None = None) -> None:
         self.cli_args = cli_args  # if cli_args is None, the parameters from sys.argv will be used
 
@@ -541,6 +546,10 @@ class HelixerModel(ABC):
         self.parser.add_argument('-p', '--prediction-output-path', type=str, default='predictions.h5')
         self.parser.add_argument('--compression', default='gzip', help='compression used for datasets in predictions '
                                                                        'h5 file. One of "lzf" or "gzip" (default)')
+        self.parser.add_argument('--compression-threads', type=int, default=4,
+                                 help='number of CPU threads compressing the predictions with gzip while the GPU '
+                                      'predicts the next batches; 0 compresses in the main thread after each batch '
+                                      '(no effect with --compression lzf)')
         self.parser.add_argument('--eval', action='store_true')
         self.parser.add_argument('--overlap', action="store_true",
                                  help="will improve prediction quality at 'chunk' ends by creating and overlapping "
@@ -609,6 +618,9 @@ class HelixerModel(ABC):
                 args[arg] = default
 
         self.__dict__.update(args)
+        # absolute, as _print_model_info changes the working directory before computing the md5sum of the model
+        if self.load_model_path:
+            self.load_model_path = os.path.abspath(self.load_model_path)
         self.predict_phase = True
 
         self.testing = bool(self.load_model_path and not self.resume_training)
@@ -620,6 +632,8 @@ class HelixerModel(ABC):
 
         assert not (not self.testing and self.test_data)
         assert not (self.resume_training and (not self.load_model_path or not self.data_dir))
+        assert self.compression_threads >= 0, \
+            f'--compression-threads must not be negative, got {self.compression_threads}'
 
         self.class_weights = ast.literal_eval(self.class_weights)
         if not isinstance(self.class_weights, (list, np.ndarray, type(None))):
@@ -875,6 +889,11 @@ class HelixerModel(ABC):
         start_time = time.time()
         pred_out = h5py.File(self.prediction_output_path, 'w')
         test_sequence = self.gen_test_data()
+        # gzip: the chunks of each batch are compressed in threads while the GPU predicts the next batches and are
+        # written as they are; any other compression, or no threads, is left to h5py
+        threads = self.compression_threads if self.compression == 'gzip' else 0
+        pool = ThreadPoolExecutor(threads) if threads > 0 else None
+        pending = deque()  # (dataset, first row, future of the compressed chunks), oldest first
 
         for batch_index in range(len(test_sequence)):
             if self.verbose:
@@ -930,18 +949,29 @@ class HelixerModel(ABC):
                 pred_dset = pred_dset.astype(np.float16)
                 if batch_index == 0:
                     pred_out.create_dataset(dset_name,
-                                            data=pred_dset,
+                                            shape=(0,) + pred_dset.shape[1:],
                                             maxshape=(None,) + pred_dset.shape[1:],
                                             chunks=(1,) + pred_dset.shape[1:],
                                             dtype='float16',
                                             compression=self.compression,
                                             shuffle=True)
-                    pred_out.flush()
+                dset = pred_out[dset_name]
+                old_len = dset.shape[0]
+                dset.resize(old_len + pred_dset.shape[0], axis=0)
+                if pool is None:
+                    dset[old_len:] = pred_dset
                 else:
-                    old_len = pred_out[dset_name].shape[0]
-                    pred_out[dset_name].resize(old_len + pred_dset.shape[0], axis=0)
-                    pred_out[dset_name][old_len:] = pred_dset
-                    pred_out.flush()
+                    pending.append((dset, old_len, pool.submit(HelixerModel._gzip_chunks, pred_dset)))
+
+            # write the compressed batches that are done; wait for the oldest one while too many are queued
+            while pending and (pending[0][2].done() or len(pending) > 2 * threads):
+                HelixerModel._write_chunks(*pending.popleft())
+            pred_out.flush()
+
+        while pending:
+            HelixerModel._write_chunks(*pending.popleft())
+        if pool is not None:
+            pool.shutdown()
 
         # add model config and other attributes to predictions
         h5_model = h5py.File(self.load_model_path, 'r')
@@ -961,10 +991,46 @@ class HelixerModel(ABC):
         except Exception:
             pass  # silently skip if os sync is not supported
         pred_out.close()
-        # close model file after extracting meta-data
+        # close model file after extracting metadata
         h5_model.close()
         print(flush=True)
         logger.info('prediction took {:.2f} minutes\n'.format(int(time.time() - start_time) / 60))
+
+    @staticmethod
+    def _gzip_chunks(batch: np.ndarray) -> list[bytes]:
+        """Compresses every row of a batch as one HDF5 chunk with the shuffle and gzip filters.
+
+        The result is byte-identical to what h5py writes for a dataset with chunks=(1,) + batch.shape[1:],
+        compression='gzip' and shuffle=True. zlib releases the GIL, so batches can be compressed in threads.
+
+        :param batch: array whose rows are the chunks, e.g. (subsequences, bases, classes)
+        :returns: the compressed chunks, one per row
+        """
+        size = batch.dtype.itemsize
+        # - np.ascontiguousarray(row) -> makes sure the row sits in one continuous block of memory, so it can be
+        #   viewed as bytes.
+        # - .view(np.uint8) shows the float16 values as their raw bytes, for example [lo0, hi0, lo1, hi1, lo2, hi2, ...]
+        #   (low and high byte of each value).
+        # - .reshape(-1, size) with size = 2 groups the bytes per value: [[lo0, hi0], [lo1, hi1], ...].
+        # - .T.tobytes() transposes and writes the result out as [lo0, lo1, lo2, ..., hi0, hi1, hi2, ...].
+        #   This is exactly what HDF5's shuffle filter does natively: byte 0 of every element first, then byte 1.
+        # - zlib.compress(..., 4) is HDF5's deflate (gzip) filter at level 4.
+        # In summary, this function rebuilds saving a dataset with gzip compression at default level 4 and shuffling
+        # while allowing for parallelization.
+        return [zlib.compress(np.ascontiguousarray(row).view(np.uint8).reshape(-1, size).T.tobytes(),
+                              HelixerModel.GZIP_LEVEL) for row in batch]
+
+    @staticmethod
+    def _write_chunks(dset: h5py.Dataset, first_row: int, chunks: Future) -> None:
+        """Writes compressed chunks of one row each (_gzip_chunks) to consecutive rows of a dataset, starting at
+        first_row; waits for the compression to finish."""
+        for i, chunk in enumerate(chunks.result()):
+            # dset[...] = x would shuffle and compress the data itself. write_direct_chunk instead stores the
+            # already compressed bytes unchanged as one chunk of the file. The chunk is addressed by the index of
+            # its first element: row first_row + i and 0 in every other dimension, as each chunk is exactly one row.
+            # HDF5 keeps a note per chunk of which filters were skipped; none by default, so readers unshuffle and
+            # decompress these chunks like any other, i.e. like they were written with dset[...] = x.
+            dset.id.write_direct_chunk((first_row + i,) + (0,) * (dset.ndim - 1), chunk)
 
     def _print_model_info(self, model):
         pwd = os.getcwd()
