@@ -1,3 +1,4 @@
+# Manual installation
 > **! Note**: Manual installation is only available for _Linux_ operating systems.
 
 If you just want to install Helixer in one line without the steps explained, see
@@ -111,14 +112,14 @@ pytest --verbose tests/test_integration.py
 
 ### GPU requirements (optional, but highly recommended for realistically sized datasets)
 To run on a GPU (highly recommended for realistically sized datasets),
-tensorflow needs to be installed with its GPU requirements, 
-see: https://www.tensorflow.org/install/gpu.
-It's recommended to install the cuda dependencies after the requirements and
-Helixer to prevent version mismatches.
+tensorflow needs NVIDIA's CUDA libraries, see: https://www.tensorflow.org/install/gpu.
+Helixer's `gpu` extra installs them into the virtual environment (about 3 GB), in the
+versions matching the installed tensorflow. The NVIDIA driver has to be installed on the
+system.
 
 ```bash
-# Linux instructions from the tensorflow GPU install
-pip install tensorflow[and-cuda]  # inside a virtual environment, otherwise use: python3 -m pip install tensorflow[and-cuda]
+# from the Helixer directory, instead of or after `pip install .`
+pip install ".[gpu]"  # or `pip install -e ".[gpu]"`, if you will be changing the code
 # Verify the installation:
 python3 -c "import tensorflow as tf; print(tf.config.list_physical_devices('GPU'))"
 
@@ -147,5 +148,5 @@ environment called 'env', installs pip 26.2.2 by its pinned hash (see
 # from a directory of your choice
 git clone https://github.com/usadellab/Helixer.git && cd Helixer && python3.10 -m venv env && source env/bin/activate && pip install "pip @ https://files.pythonhosted.org/packages/3f/06/3e4420302363fbb71be3c7f35ce042f54bfca330e3e66b3a2e3c4cca579f/pip-26.2.2-py3-none-any.whl#sha256=fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70" && pip install -r requirements.3.10.txt && pip install .
 ```
-For GPU support, follow [GPU requirements](#gpu-requirements-optional-but-highly-recommended-for-realistically-sized-datasets)
-afterwards.
+For GPU support, replace the final `pip install .` with `pip install ".[gpu]"`, see
+[GPU requirements](#gpu-requirements-optional-but-highly-recommended-for-realistically-sized-datasets).

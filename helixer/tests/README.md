@@ -21,7 +21,7 @@ pytest --verbose tests/test_helixer.py
 
 ## Integration tests — `test_integration.py`
 End-to-end pipeline tests that run the actual CLI scripts and verify their outputs.
-All tests must be run from `Helixer/helixer`. Tiny delays during testing (~10-30 sec.) are expected;
+All tests must be run from `Helixer/helixer`. Tiny delays during testing (~5 sec.) are expected;
 even though the test data is small some processes like `Helixer.py` still require a few seconds to run.
 
 ```bash
