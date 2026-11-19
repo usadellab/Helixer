@@ -1,6 +1,7 @@
 #! /usr/bin/env python3
 import argparse
 import logging.config
+from importlib.metadata import version
 from pprint import pformat
 from termcolor import colored
 
@@ -57,6 +58,7 @@ if __name__ == '__main__':
     args = pp.get_args()
     logging.config.dictConfig(get_log_dict())
     logger = logging.getLogger('HelixerLogger')
-    logger.info(colored('\ngeenuff2h5.py config:\n', 'yellow') + f'{pformat(vars(args))}\n')
+    logger.info(colored(f'\ngeenuff2h5.py (Helixer {version("helixer")}) config:\n', 'yellow')
+                + f'{pformat(vars(args))}\n')
     main(args)
     logger.info(f'Finished writing {args.h5_output_path}.')

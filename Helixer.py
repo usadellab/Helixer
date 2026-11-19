@@ -11,6 +11,7 @@ import subprocess
 from termcolor import colored
 from pprint import pformat
 import logging.config
+from importlib.metadata import version
 
 from helixer.core.scripts import ParameterParser, check_fasta_path
 from helixer.core.data import prioritized_models, report_if_current_not_best, identify_current, set_model_path
@@ -225,7 +226,7 @@ class HelixerParameterParser(ParameterParser):
 def main() -> None:
     logging.config.dictConfig(get_log_dict())
     logger = logging.getLogger('HelixerLogger')
-    logger.info(colored(f'Starting Helixer, using python version {sys.version}', 'green'))
+    logger.info(colored(f'Starting Helixer {version("helixer")}, using python version {sys.version}', 'green'))
     helixer_post_bin = 'helixer_post_bin'
     start_time = time.time()
     pp = HelixerParameterParser('config/helixer_config.yaml')

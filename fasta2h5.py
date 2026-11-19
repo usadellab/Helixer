@@ -1,6 +1,7 @@
 #! /usr/bin/env python3
 import argparse
 import logging.config
+from importlib.metadata import version
 from pprint import pformat
 from termcolor import colored
 
@@ -27,7 +28,8 @@ if __name__ == '__main__':
     args = pp.get_args()
     logging.config.dictConfig(get_log_dict())
     logger = logging.getLogger('HelixerLogger')
-    logger.info(colored('\nfasta2h5.py config:\n', 'yellow') + f'{pformat(vars(args))}\n')
+    logger.info(colored(f'\nfasta2h5.py (Helixer {version("helixer")}) config:\n', 'yellow')
+                + f'{pformat(vars(args))}\n')
     controller = HelixerFastaToH5Controller(args.fasta_path, args.h5_output_path)
     controller.export_fasta_to_h5(chunk_size=args.subsequence_length, compression=args.compression,
                                   species=args.species, write_by=args.write_by)
