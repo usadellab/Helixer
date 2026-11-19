@@ -33,6 +33,7 @@ from tensorflow.keras.layers import Input
 from tensorflow_addons.optimizers import AdamW
 
 import helixer.core.helpers
+from helixer.core.helpers import is_progress_step
 from helixer.prediction.Metrics import Metrics
 from helixer.core import overlap
 
@@ -43,8 +44,9 @@ class ConfusionMatrixTrain(Callback):
     def __init__(self, save_model_path: str, train_generator: 'HelixerSequence',
                  val_generator: 'HelixerSequence', large_eval_folder: str, patience: int,
                  calc_H: bool = False, check_every_nth_batch: int = 1_000_000,
-                 save_every_check: bool = False) -> None:
+                 save_every_check: bool = False, log_interval_fraction: float = 0.05) -> None:
         self.save_model_path = save_model_path
+        self.log_interval_fraction = log_interval_fraction
         self.save_dir = os.path.dirname(save_model_path)
         self.save_every_check = save_every_check
         self.train_generator = train_generator
@@ -68,7 +70,7 @@ class ConfusionMatrixTrain(Callback):
 
     def on_train_batch_end(self, batch: int, logs: dict | None = None) -> None:
         if not (batch + 1) % self.check_every_nth_batch:
-            logger.info(f'\nvalidation and checkpoint at batch {batch}')
+            logger.info(f'validation and checkpoint at batch {batch}')
             self.check_in(batch)
 
     def freeze_layers(self, model: Model) -> Model:
@@ -80,7 +82,8 @@ class ConfusionMatrixTrain(Callback):
         return model
 
     def check_in(self, batch: int | None = None) -> None:
-        _, _, val_genic_f1 = HelixerModel.run_metrics(self.val_generator, self.model, calc_H=self.calc_H)
+        _, _, val_genic_f1 = HelixerModel.run_metrics(self.val_generator, self.model, calc_H=self.calc_H,
+                                                      log_interval_fraction=self.log_interval_fraction)
         if val_genic_f1 > self.best_val_genic_f1:
             self.best_val_genic_f1 = val_genic_f1
             self.freeze_layers(self.model)
@@ -109,13 +112,34 @@ class ConfusionMatrixTrain(Callback):
             # double check that we loaded the correct model, can be remove if confirmed this works
             logger.info('\nValidation set again:')
             _, _, val_genic_f1 = HelixerModel.run_metrics(self.val_generator, best_model, print_to_stdout=True,
-                                                          calc_H=self.calc_H)
+                                                          calc_H=self.calc_H,
+                                                          log_interval_fraction=self.log_interval_fraction)
             assert val_genic_f1 == self.best_val_genic_f1
 
             training_species = self.train_generator.h5_file.attrs['genomes']
             median_f1 = HelixerModel.run_large_eval(self.large_eval_folder, best_model, self.val_generator, training_species)
 
 
+
+
+class ProgressLogger(Callback):
+    """Logs the training progress of each epoch in steps of a fraction of its batches, with the running losses
+    and metrics Keras reports for the epoch so far."""
+
+    def __init__(self, log_interval_fraction: float) -> None:
+        super().__init__()
+        self.log_interval_fraction = log_interval_fraction
+        self.epoch = 0
+
+    def on_epoch_begin(self, epoch: int, logs: dict | None = None) -> None:
+        self.epoch = epoch
+
+    def on_train_batch_end(self, batch: int, logs: dict | None = None) -> None:
+        done, total = batch + 1, self.params['steps']
+        if is_progress_step(done, total, self.log_interval_fraction):
+            losses = ', '.join(f'{name}: {value:.4f}' for name, value in (logs or {}).items())
+            logger.info(f'epoch {self.epoch + 1}/{self.params["epochs"]}, batch {done}/{total} '
+                        f'({done / total * 100:.0f} %), {losses}')
 
 
 class PreshuffleCallback(Callback):
@@ -526,6 +550,9 @@ class HelixerModel(ABC):
         self.parser.add_argument('--loss', type=str, default='')
         self.parser.add_argument('--patience', type=int, default=3)
         self.parser.add_argument('--check-every-nth-batch', type=int, default=1_000_000)
+        self.parser.add_argument('--log-interval-fraction', type=float, default=0.05,
+                                 help='progress log fraction during training/validation batches e.g. 0.05 '
+                                      'logs every 5 % of batches (default: 0.05)')
         self.parser.add_argument('--optimizer', type=str, default='adamw')
         self.parser.add_argument('--clip-norm', type=float, default=3.0)
         self.parser.add_argument('--learning-rate', type=float, default=3e-4)
@@ -634,6 +661,8 @@ class HelixerModel(ABC):
         assert not (self.resume_training and (not self.load_model_path or not self.data_dir))
         assert self.compression_threads >= 0, \
             f'--compression-threads must not be negative, got {self.compression_threads}'
+        assert 0 < self.log_interval_fraction <= 1, \
+            f'--log-interval-fraction must be in (0, 1], got {self.log_interval_fraction}'
 
         self.class_weights = ast.literal_eval(self.class_weights)
         if not isinstance(self.class_weights, (list, np.ndarray, type(None))):
@@ -650,7 +679,7 @@ class HelixerModel(ABC):
         if type(self.transition_weights) is list:
             self.transition_weights = np.array(self.transition_weights, dtype=np.float32)
 
-        if self.verbose:
+        if self.verbose or not self.testing:
             logger.info(colored('\nHelixerModel config:\n', 'yellow') + f'{pformat(args)}\n')
 
         # this extracts the pool size from the model file without initializing it or any resources
@@ -664,10 +693,12 @@ class HelixerModel(ABC):
                         self.pool_size = layer['config']['target_shape'][1]  # target shape: [-1, pool_size, n_classes]
 
     def generate_callbacks(self, train_generator: 'HelixerSequence') -> list[Callback]:
-        callbacks = [ConfusionMatrixTrain(self.save_model_path, train_generator, self.gen_validation_data(),
+        callbacks = [ProgressLogger(self.log_interval_fraction),
+                     ConfusionMatrixTrain(self.save_model_path, train_generator, self.gen_validation_data(),
                                           self.large_eval_folder, self.patience, calc_H=self.calculate_uncertainty,
                                           check_every_nth_batch=self.check_every_nth_batch,
-                                          save_every_check=self.save_every_check),
+                                          save_every_check=self.save_every_check,
+                                          log_interval_fraction=self.log_interval_fraction),
                      PreshuffleCallback(train_generator)]
         return callbacks
 
@@ -702,10 +733,10 @@ class HelixerModel(ABC):
 
     @staticmethod
     def run_metrics(generator: 'HelixerSequence', model: Model, print_to_stdout: bool = True,
-                    calc_H: bool = False) -> tuple[float, float, float]:
+                    calc_H: bool = False, log_interval_fraction: float = 0.05) -> tuple[float, float, float]:
         start = time.time()
         metrics_calculator = Metrics(generator, print_to_stdout=print_to_stdout,
-                                     skip_uncertainty=not calc_H)
+                                     skip_uncertainty=not calc_H, log_interval_fraction=log_interval_fraction)
         metrics = metrics_calculator.calculate_metrics(model)
         genic_metrics = metrics['genic_base_wise']['genic']
         if np.isnan(genic_metrics['f1']):
@@ -857,7 +888,7 @@ class HelixerModel(ABC):
             n_test_seqs_with_intergenic = self.shape_test[0]
             n_intergenic_test_seqs = get_n_intergenic_seqs(self.h5_tests)
 
-        if self.verbose:
+        if self.verbose or not self.testing:
             if not self.testing:
                 config_msg = f'{[dict(x.attrs) for x in self.h5_trains]}'
                 msg = (('Training data/X shape: {}\n'
@@ -880,7 +911,8 @@ class HelixerModel(ABC):
                                   self.shape_test[:2],
                                   n_intergenic_test_seqs / n_test_seqs_with_intergenic * 100,
                                   n_test_correct_seqs / self.shape_test[0] * 100))
-            logger.info(colored(f'Data config:\n', 'yellow') + config_msg)
+            if self.verbose:
+                logger.info(colored(f'Data config:\n', 'yellow') + config_msg)
             logger.info(colored(f'Data info:\n', 'yellow') + msg)
 
     def _make_predictions(self, model):
@@ -895,10 +927,11 @@ class HelixerModel(ABC):
         pool = ThreadPoolExecutor(threads) if threads > 0 else None
         pending = deque()  # (dataset, first row, future of the compressed chunks), oldest first
 
-        for batch_index in range(len(test_sequence)):
-            if self.verbose:
-                # can't easily be done with a logger, so it will stay as a print statement
-                print(batch_index + 1, '/', len(test_sequence), end='\r', flush=True)
+        n_batches = len(test_sequence)
+        for batch_index in range(n_batches):
+            if is_progress_step(batch_index + 1, n_batches, 0.05):
+                logger.info(f'predicting batch {batch_index + 1}/{n_batches} '
+                            f'({(batch_index + 1) / n_batches * 100:.0f} %)')
             if not self.only_predictions:
                 input_data = test_sequence[batch_index][0]
             else:
@@ -993,7 +1026,6 @@ class HelixerModel(ABC):
         pred_out.close()
         # close model file after extracting metadata
         h5_model.close()
-        print(flush=True)
         logger.info('prediction took {:.2f} minutes\n'.format(int(time.time() - start_time) / 60))
 
     @staticmethod
@@ -1053,12 +1085,13 @@ class HelixerModel(ABC):
             logger.warning('An error occurred while running a subprocess, unable to record loaded_model_hash')
             self.loaded_model_hash = 'error'
 
-        logger.info(colored('Model info:', 'yellow'))
         if self.verbose:
-            # tf model summary automatically prints the summary string and returns None
-            model.summary(print_fn=print(flush=True))  # make sure this is flushed to stdout
-            print(flush=True)
+            # collects the lines of the summary, so it is logged as one message
+            lines = []
+            model.summary(print_fn=lambda line, *args, **kwargs: lines.append(line))
+            logger.info(colored('Model info:\n', 'yellow') + '\n'.join(lines) + '\n')
         else:
+            logger.info(colored('Model info:', 'yellow'))
             logger.info('Total params: {:,}\n'.format(model.count_params()))
         os.chdir(pwd)  # return to previous directory
 
@@ -1116,7 +1149,7 @@ class HelixerModel(ABC):
                       epochs=self.epochs,
                       workers=self.workers,
                       callbacks=self.generate_callbacks(train_generator),
-                      verbose=True)
+                      verbose=0)
         else:
             assert self.test_data.endswith('.h5'), 'Need a h5 test data file when loading a model'
             assert self.load_model_path.endswith('.h5'), 'Need a h5 model file'
@@ -1134,7 +1167,8 @@ class HelixerModel(ABC):
 
             if self.eval:
                 test_generator = self.gen_test_data()
-                _, _, _ = HelixerModel.run_metrics(test_generator, model, calc_H=self.calculate_uncertainty)
+                _, _, _ = HelixerModel.run_metrics(test_generator, model, calc_H=self.calculate_uncertainty,
+                                                   log_interval_fraction=self.log_interval_fraction)
                 if self.large_eval_folder:
                     assert self.data_dir != '', 'need training data of the model for training genome names'
                     with h5py.File(os.path.join(self.data_dir, 'training_data.h5'), 'r') as h5_train:

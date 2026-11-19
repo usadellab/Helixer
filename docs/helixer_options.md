@@ -96,21 +96,22 @@ command line.
 
 
 ### Training parameters
-| Parameter               | Default   | Explanation                                                                                                                                                                                                                  |
-|:------------------------|:----------|:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| -e/--epochs             | 10,000    | Number of training runs                                                                                                                                                                                                      |
-| -b/--batch-size         | 8         | Batch size for training data; for multi-GPU training please multiply by the number of GPUs                                                                                                                                   |
-| --val-test-batch-size   | 32        | Batch size for validation/test data; for multi-GPU training please multiply by the number of GPUs                                                                                                                            |
-| --loss                  | /         | Loss function specification                                                                                                                                                                                                  |
-| --patience              | 3         | Allowed epochs without the validation genic F1 improving before stopping training                                                                                                                                            |
-| --check-every-nth-batch | 1,000,000 | Check validation genic F1 every nth batch, on default this check gets executed once every epoch regardless of the number of batches                                                                                          |
-| --optimizer             | adamw     | Optimizer algorithm; options: adam or adamw                                                                                                                                                                                  |
-| --clip-norm             | 3.0       | The gradient of each weight is individually clipped so that its norm is no higher than this value                                                                                                                            |
-| --learning-rate         | 3e-4      | Learning rate for training                                                                                                                                                                                                   |
-| --weight-decay          | 3.5e-5    | Weight decay for training; penalizes complexity and prevents overfitting                                                                                                                                                     |
-| --class-weights         | /         | Weighting of the 4 classes [intergenic, UTR, CDS, Intron] (Helixer predictions)                                                                                                                                              |
-| --transition-weights    | /         | Weighting of the 6 transition categories [transcription start site, start codon, donor splice site, transcription stop site, stop codon, acceptor splice site]                                                               |
-| --resume-training       | False     | Add this to resume training (pretrained model checkpoint necessary)                                                                                                                                                          |
+| Parameter               | Default   | Explanation                                                                                                                                                    |
+|:------------------------|:----------|:---------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| -e/--epochs             | 10,000    | Number of training runs                                                                                                                                        |
+| -b/--batch-size         | 8         | Batch size for training data; for multi-GPU training please multiply by the number of GPUs                                                                     |
+| --val-test-batch-size   | 32        | Batch size for validation/test data; for multi-GPU training please multiply by the number of GPUs                                                              |
+| --loss                  | /         | Loss function specification                                                                                                                                    |
+| --patience              | 3         | Allowed epochs without the validation genic F1 improving before stopping training                                                                              |
+| --check-every-nth-batch | 1,000,000 | Check validation genic F1 every nth batch, on default this check gets executed once every epoch regardless of the number of batches                            |
+| --log-interval-fraction | 0.05      | Progress log fraction during training/validation batches e.g. 0.05 logs every 5 % of batches (default: 0.05)                                                   |
+| --optimizer             | adamw     | Optimizer algorithm; options: adam or adamw                                                                                                                    |
+| --clip-norm             | 3.0       | The gradient of each weight is individually clipped so that its norm is no higher than this value                                                              |
+| --learning-rate         | 3e-4      | Learning rate for training                                                                                                                                     |
+| --weight-decay          | 3.5e-5    | Weight decay for training; penalizes complexity and prevents overfitting                                                                                       |
+| --class-weights         | /         | Weighting of the 4 classes [intergenic, UTR, CDS, Intron] (Helixer predictions)                                                                                |
+| --transition-weights    | /         | Weighting of the 6 transition categories [transcription start site, start codon, donor splice site, transcription stop site, stop codon, acceptor splice site] |
+| --resume-training       | False     | Add this to resume training (pretrained model checkpoint necessary)                                                                                            |
 
 ### Testing/Predicting parameters
 | Parameter                   | Default                    | Explanation                                                                                                                                                                                                             |

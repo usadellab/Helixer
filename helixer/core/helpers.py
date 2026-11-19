@@ -162,6 +162,18 @@ def file_stem(path: str) -> str:
     return os.path.basename(path).split('.')[0]
 
 
+def is_progress_step(done: int, total: int, fraction: float) -> bool:
+    """Returns whether a progress message is due after step done of total steps.
+
+    :param done: number of finished steps, 1-based
+    :param total: total number of steps
+    :param fraction: fraction of the total steps between two messages, e.g. 0.05 for every 5 %
+    :returns: True where done crosses a multiple of fraction * total or is the last step
+    """
+    step = total * fraction
+    return done == total or int(done / step) > int((done - 1) / step)
+
+
 def get_log_dict() -> dict:
     return {
         "version": 1,

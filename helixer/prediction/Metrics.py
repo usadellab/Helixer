@@ -9,6 +9,8 @@ from scipy.sparse import coo_matrix
 from tensorflow.keras.models import Model
 from tensorflow.keras.utils import Sequence
 
+from helixer.core.helpers import is_progress_step
+
 logger = logging.getLogger('HelixerLogger')
 
 
@@ -252,9 +254,10 @@ class ConfusionMatrixPhase(ConfusionMatrix):
 
 class Metrics:
     def __init__(self, generator: Sequence, print_to_stdout: bool = True,
-                 skip_uncertainty: bool = True) -> None:
+                 skip_uncertainty: bool = True, log_interval_fraction: float = 0.05) -> None:
         np.set_printoptions(suppress=True)  # do not use scientific notation for the print out
         self.generator = generator
+        self.log_interval_fraction = log_interval_fraction
         self.print_to_stdout = print_to_stdout
         self.skip_uncertainty = skip_uncertainty
         self.cm_genic = ConfusionMatrixGenic(skip_uncertainty=self.skip_uncertainty)
@@ -275,8 +278,11 @@ class Metrics:
         return y_true, y_pred, sw
 
     def calculate_metrics(self, model: Model) -> dict:
-        for batch_idx in range(len(self.generator)):
-            print(batch_idx + 1, '/', len(self.generator), end="\r", flush=True)
+        n_batches = len(self.generator)
+        for batch_idx in range(n_batches):
+            if is_progress_step(batch_idx + 1, n_batches, self.log_interval_fraction):
+                logger.info(f'evaluating batch {batch_idx + 1}/{n_batches} '
+                            f'({(batch_idx + 1) / n_batches * 100:.0f} %)')
 
             inputs = self.generator[batch_idx]
             if len(inputs) == 2 and type(inputs[0]) is list:
@@ -309,7 +315,6 @@ class Metrics:
                 if self.generator.overlap:
                     y_true, y_pred, sw_copy = self._overlap_all_data(batch_idx, y_true, y_pred, sw_copy)
                 cm.count_and_calculate_one_batch(y_true, y_pred, sw_copy)
-        print('\n', flush=True)
 
         # data contains cms + metric
         for metric_name, (cm, (_, _)) in data.items():
