@@ -36,16 +36,17 @@ command line.
 | --compression-threads | 4                                                                                                           | Number of CPU threads compressing the predictions while the GPU predicts the next batches (only with --compression gzip, i.e. the default compression method); 0 compresses in the main thread after each batch.                                                                                                                                                                            |
 
 ### Post-processing parameters
-| Parameter               | Default | Explanation                                                                                                                                                                                           |
-|:------------------------|:--------|:------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| --window-size           | 100     | Width of the sliding window that is assessed for intergenic vs genic (UTR/Coding Sequence/Intron) content                                                                                             |
-| --edge-threshold        | 0.1     | Threshold specifies the genic score which defines the start/end boundaries of each candidate region within the sliding window                                                                         |
-| --peak-threshold        | 0.8     | Threshold specifies the minimum peak genic score required to accept the candidate region; the candidate region is accepted if it contains at least one window with a genic score above this threshold |
-| --min-coding-length     | 60      | Output is filtered to remove genes with a total coding length shorter than this value                                                                                                                 |
-| --min-intron-length     | 50      | Minimum intron length in bp for U2-type introns (GT-AG and GC-AG; also covers U12-type GT-AG introns). Values below 2 act as 2                                                                        |
-| --min-intron-length-u12 | 30      | Minimum intron length in bp for U12-type AT-AC introns. Values below 2 act as 2                                                                                                                       |
-| --post-config-path      | /       | YAML config file for helixer_post_bin with further post-processing parameters, see [HelixerPost options](#4-helixerpost-options)                                                                      |
-| --post-threads          | 4       | Number of CPU threads for post-processing; 0 uses all available cores                                                                                                                                 |
+| Parameter                | Default | Explanation                                                                                                                                                                                                                                  |
+|:-------------------------|:--------|:---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| --window-size            | 100     | Width of the sliding window that is assessed for intergenic vs genic (UTR/Coding Sequence/Intron) content                                                                                                                                    |
+| --edge-threshold         | 0.1     | Threshold specifies the genic score which defines the start/end boundaries of each candidate region within the sliding window                                                                                                                |
+| --peak-threshold         | 0.8     | Threshold specifies the minimum peak genic score required to accept the candidate region; the candidate region is accepted if it contains at least one window with a genic score above this threshold                                        |
+| --min-coding-length      | 60      | Output is filtered to remove genes with a total coding length shorter than this value                                                                                                                                                        |
+| --min-intron-length      | 50      | Minimum intron length in bp for U2-type introns (GT-AG and GC-AG; also covers U12-type GT-AG introns). Values below 2 act as 2                                                                                                               |
+| --min-intron-length-u12  | 30      | Minimum intron length in bp for U12-type AT-AC introns. Values below 2 act as 2                                                                                                                                                              |
+| --post-config-path       | /       | YAML config file for helixer_post_bin with further post-processing parameters, see [HelixerPost options](#4-helixerpost-options)                                                                                                             |
+| --post-threads           | 4       | Number of CPU threads for post-processing; 0 uses all available cores                                                                                                                                                                        |
+| --post-max-in-flight-mbp | 4       | Cap on the total length in Mbp of the candidate regions queued or being decoded at a time; bounds the peak memory on genomes with many long candidate regions (e.g. human) and does not change the output. Lower it if memory is very short. |
 
 For each post-processing parameter, the first of these sources that sets it is used:
 1. Helixer.py command line
@@ -162,15 +163,29 @@ helixer_post_bin [OPTIONS] <genome.h5> <predictions.h5> <output.gff3>
 helixer_post_bin --peak-threshold 0.9 --min-intron-length 30 --min-intron-length-u12 30 \
   genome.h5 predictions.h5 output.gff3
 ```
-`helixer_post_bin --help` lists all options, including further hidden Markov model tuning
-parameters, the number of threads (`--threads`), a per-base rating output file (`--rating`, only
-written when given; very large, roughly 230 bytes per bp) and a YAML config file (`--config`).
+Besides the post-processing parameters of Helixer.py (same names and defaults, except for the
+Helixer.py-only `--post-*` options), `helixer_post_bin` has the following options:
+
+| Parameter              | Default             | Explanation                                                                                                                                                                                                                                                               |
+|:-----------------------|:--------------------|:--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| -c/--config            | /                   | YAML config file with all post-processing parameters, including those without a command line option (minimum intron length per intron class, splice-flag booleans, per-donor fixed penalties); command line options override its values. Helixer.py: `--post-config-path` |
+| --print-default-config | False               | Writes all defaults as a YAML config file template to stdout and exits                                                                                                                                                                                                    |
+| -j/--threads           | all available cores | Number of threads for the hidden Markov model decoding. Helixer.py: `--post-threads` (default 4)                                                                                                                                                                          |
+| --max-in-flight-mbp    | 4                   | Cap on the total length in Mbp of the candidate regions queued or being decoded at a time; does not change the output. Helixer.py: `--post-max-in-flight-mbp`                                                                                                             |
+| --rating               | /                   | Per-base rating output file (reference vs. prediction for each base and strand); only written when given; very large, roughly 230 bytes per bp                                                                                                                            |
+| -v/--verbose           | False               | Prints per-sequence and per-strand ratings, one line per sequence and candidate region and the decoded hidden Markov model regions                                                                                                                                        |
+| --hmm-prob-floor       | 1e-9                | Floor applied to the predicted probabilities before the negative-log conversion                                                                                                                                                                                           |
+| --hmm-phase-retain     | 0.2                 | Weight given to the predicted phase signal (0 ignores it, 1 trusts it fully)                                                                                                                                                                                              |
+| --hmm-start-weight     | 1000                | Multiplicative weight on the start codon base-match penalty                                                                                                                                                                                                               |
+| --hmm-stop-weight      | 1000                | Multiplicative weight on the stop codon base-match penalty                                                                                                                                                                                                                |
+| --hmm-donor-weight     | 2                   | Multiplicative weight on the splice donor base-match penalty                                                                                                                                                                                                              |
+| --hmm-acceptor-weight  | 2                   | Multiplicative weight on the splice acceptor base-match penalty                                                                                                                                                                                                           |
+
 `helixer_post_bin --print-default-config > helixer_post_config.yml` writes all defaults as a config
 file template; after editing, it can be passed to Helixer.py with `--post-config-path`. The
 [HelixerPost README](https://github.com/usadellab/HelixerPost#parameters) describes the config
 options in more detail.
-Detailed output, i.e. per-sequence ratings, progress lines and the decoded hidden Markov model regions,
-is only printed by `helixer_post_bin --verbose` (HelixerPost 0.4.0 or newer) in the
+The detailed `--verbose` output is only available in the
 [3-step workflow](../README.md#3-step-inference), which keeps the genome and predictions h5 files, so the post-processing can be
 rerun without a new prediction.
 

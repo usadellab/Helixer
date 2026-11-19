@@ -114,6 +114,11 @@ class HelixerParameterParser(ParameterParser):
         self.post_group.add_argument('--post-threads', type=int,
                                      help='number of CPU threads for post-processing; 0 uses all available '
                                           'cores. (Default is 4.)')
+        self.post_group.add_argument('--post-max-in-flight-mbp', type=float,
+                                     help='cap on the total length in Mbp of the candidate regions queued or being '
+                                          'decoded at a time during post-processing; bounds the peak memory on '
+                                          'genomes with many long candidate regions (e.g. human), does not change '
+                                          'the output. (Default is 4.)')
 
         helixer_defaults = {
             'fasta_path': '',
@@ -138,6 +143,7 @@ class HelixerParameterParser(ParameterParser):
             'min_intron_length_u12': 30,
             'post_config_path': '',
             'post_threads': 4,
+            'post_max_in_flight_mbp': 4.0,
         }
         self.defaults = {**self.defaults, **helixer_defaults}
 
@@ -209,6 +215,8 @@ class HelixerParameterParser(ParameterParser):
         for name in ('compression_threads', 'min_intron_length', 'min_intron_length_u12', 'post_threads'):
             value = getattr(args, name)
             assert value >= 0, f'--{name.replace("_", "-")} must be positive, got {value}'
+        assert args.post_max_in_flight_mbp > 0, \
+            f'--post-max-in-flight-mbp must be positive, got {args.post_max_in_flight_mbp}'
         if args.post_config_path:
             assert os.path.isfile(args.post_config_path), \
                 f'--post-config-path {args.post_config_path} does not exist or is not a file'
@@ -255,8 +263,9 @@ def main() -> None:
     else:
         run = subprocess.run([helixer_post_bin, '--help'], capture_output=True, text=True)
         # a fully installed helixer_post_bin prints its help and returns 0; the flag-based CLI
-        # (--window-size etc.) of HelixerPost >= 0.4.0 is required, older versions only accept positional parameters
-        if run.returncode != 0 or '--min-intron-length' not in run.stdout:
+        # (--window-size etc.) of HelixerPost >= 0.4.0 is required, older versions only accept positional parameters;
+        # --max-in-flight-mbp is the most recent flag Helixer.py passes
+        if run.returncode != 0 or '--max-in-flight-mbp' not in run.stdout:
             print(colored(f'\nError: {helixer_post_bin} --help failed or {helixer_post_bin} is outdated; '
                           f'HelixerPost 0.4.0 or newer is required.\n', 'red'), file=sys.stderr)
             print(run.stderr, file=sys.stderr)
@@ -328,6 +337,7 @@ def main() -> None:
             helixerpost_cmd += ['--config', args.post_config_path]
         if args.post_threads > 0:
             helixerpost_cmd += ['--threads', str(args.post_threads)]
+        helixerpost_cmd += ['--max-in-flight-mbp', str(args.post_max_in_flight_mbp)]
         helixerpost_cmd += [tmp_genome_h5_path, tmp_pred_h5_path, args.gff_output_path]
         logger.info(f'Post-processing command: {" ".join(helixerpost_cmd)}')
 
