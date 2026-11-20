@@ -113,7 +113,7 @@ class HelixerParameterParser(ParameterParser):
                                           'explicitly for Helixer.py')
         self.post_group.add_argument('--post-threads', type=int,
                                      help='number of CPU threads for post-processing; 0 uses all available '
-                                          'cores. (Default is 4.)')
+                                          'cores, as does a number larger than the available cores. (Default is 4.)')
         self.post_group.add_argument('--post-max-in-flight-mbp', type=float,
                                      help='cap on the total length in Mbp of the candidate regions queued or being '
                                           'decoded at a time during post-processing; bounds the peak memory on '
@@ -335,8 +335,7 @@ def main() -> None:
                 helixerpost_cmd += [f'--{name.replace("_", "-")}', str(getattr(args, name))]
         if args.post_config_path:
             helixerpost_cmd += ['--config', args.post_config_path]
-        if args.post_threads > 0:
-            helixerpost_cmd += ['--threads', str(args.post_threads)]
+        helixerpost_cmd += ['--threads', str(args.post_threads)]
         helixerpost_cmd += ['--max-in-flight-mbp', str(args.post_max_in_flight_mbp)]
         helixerpost_cmd += [tmp_genome_h5_path, tmp_pred_h5_path, args.gff_output_path]
         logger.info(f'Post-processing command: {" ".join(helixerpost_cmd)}')

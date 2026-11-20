@@ -13,5 +13,5 @@
 # min_intron_length: 50  # U2-type introns (GT-AG, GC-AG)
 # min_intron_length_u12: 30  # U12-type AT-AC introns; may simply be set to the same value as min_intron_length
 # post_config_path: '/path/to/helixer_post_config.yml'  # see helixer_post_bin --print-default-config
-# post_threads: 4  # 0 uses all available CPU cores
+# post_threads: 4  # 0 uses all available CPU cores, as does a number larger than the available cores
 # post_max_in_flight_mbp: 4.0  # Mbp of candidate regions in post-processing at a time; bounds the peak memory
