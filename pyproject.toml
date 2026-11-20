@@ -17,7 +17,7 @@ classifiers = [
 dependencies = [
     "geenuff @ git+https://github.com/usadellab/GeenuFF@v0.4.0",
     "sqlalchemy==1.4.54",
-    "tensorflow>=2.13,<2.16",
+    "tensorflow==2.15.1",
     "tensorflow-addons>=0.21.0",
     "Keras<3.0.0",
     "keras_layer_normalization",
@@ -46,7 +46,7 @@ authors = [
 
 [project.optional-dependencies]
 # NVIDIA's CUDA libraries matching the installed TensorFlow version, only available for Linux
-gpu = ["tensorflow[and-cuda]>=2.13,<2.16; sys_platform == 'linux'"]
+gpu = ["tensorflow[and-cuda]==2.15.1; sys_platform == 'linux'"]
 
 [project.urls]
 "Homepage" = "https://github.com/usadellab/Helixer"

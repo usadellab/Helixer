@@ -6,15 +6,23 @@ gene models in a gff3 file. It’s performant and applicable to a wide
 variety of genomes. However, users should be aware that this software
 is under ongoing development and improvements.
 
-## Changelog Version 0.3.7 (short)
+## Changelog Version 0.3.8 (short)
 _please check out the releases for the full changelog_
-- fixed wrong HelixerPost default for min_coding_length in Helixer.py, affects
-all predictions generated through 1-step inference via Helixer.py
-- --predict-phase is now the default for every model, every script specifying
---predict-phase for HybridModel.py needs to remove this argument as it no longer exists
-- added reproducibility notes (see [Example usage](#example-usageinference-gene-calling))
-and ensured determinism during inference using same hard- and software for GPUs using
-non-deterministic cuDNN algorithms
+- requires HelixerPost v0.4.0 (rebuild it) and GeenuFF v0.4.0; **for SECURITY** upgrade pip first
+([manual installation](docs/manual_install.md#upgrade-pip-first)), as pip before 26.2.2 trusts
+the compromised eMudhra emSign root certificate
+- changed predictions: HelixerPost v0.4.0 fixes an HMM bug and raises the donor penalty and
+donor/acceptor weight defaults, giving ~60-70 % fewer CDS pieces of 1 bp and a higher exon,
+intron and gene F1, see the [performance comparison](docs/performance.md); the neural
+network predictions and models are unchanged
+- the 3-step workflow is 2.2 to 3.7 times faster (multithreaded post-processing, faster
+`fasta2h5.py` and prediction HDF5 file writing), see the [performance comparison](docs/performance.md);
+`Helixer.py` runs the same steps and is faster by about the same margin
+- GFF3 output: one ID per CDS/UTR of a transcript, partial genes are labeled `partial=true`
+- training: databases from older GeenuFF versions must be imported again
+- new options `--min-intron-length`/`--min-intron-length-u12` (species with very short introns),
+`--post-config-path`, `--post-threads`, `--compression-threads`; `--no-multiprocess` was removed
+as `fasta2h5.py` no longer needs `multiprocess`
 
 ## Table of contents
 1. [Goal](#goal)
@@ -208,7 +216,7 @@ HybridModel.py --load-model-path $HOME/.local/share/Helixer/models/land_plant/la
      --test-data Arabidopsis_lyrata.h5 --overlap --val-test-batch-size 32 -v
 
 # helixer_post_bin [OPTIONS] <genome.h5> <predictions.h5> <output.gff3>
-# (all arguments are optional; the values below are the defaults; the files are still positional arguments)
+# (the options below are set to their defaults and can be left out; only the three file paths are required)
 helixer_post_bin --window-size 100 --edge-threshold 0.1 --peak-threshold 0.8 --min-coding-length 60 \
   --min-intron-length 50 --min-intron-length-u12 30 \
   Arabidopsis_lyrata.h5 predictions.h5 Arabidopsis_lyrata_chromosome8_helixer.gff3
