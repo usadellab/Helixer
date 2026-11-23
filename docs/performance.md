@@ -98,6 +98,41 @@ v0.3.8 with 4 threads used 4 to 51% more memory on the four smaller genomes (at
 most 1.24 GiB) but 37% less on *C. arabica* (2.32 instead of 3.67 GiB), so the
 peak of a whole v0.3.8 run is set by `HybridModel.py`.
 
+### Virtual memory v0.3.8
+The virtual memory (address space) is for `HybridModel.py` far above its
+resident memory: TensorFlow and CUDA reserve 22 to 30 GiB of address space
+(mainly depending on the GPU and the node), and the GPU memory TensorFlow
+allocates is mapped into the address space as well. The peak virtual memory of
+v0.3.8 (VmPeak in `/proc/<pid>/status`, read every 0.1 s, on *A. thaliana* and
+*C. arabica*, i.e. the smallest and largest genome in this test respectively)
+was 39.3 to 40.4 GiB for `HybridModel.py`, 2.5 to 2.6 GiB for `fasta2h5.py` and
+1.3 to 2.2 GiB for `helixer_post_bin` (4 threads). GPU jobs with the land plant
+model, a subsequence length of 64,152 bp and batch size 32 therefore need about
+50 GiB of virtual memory. The requirement grows with the GPU memory used, which
+depends on the subsequence length, the batch size and the model; the GPU matters
+as well (batch size 32 in all runs):
+
+| Model (subsequence length) | Genome                 | GPU                    | Peak virtual memory (GiB) | GPU memory (GiB) | Rest (GiB) | After loading the model (GiB) |
+|:---------------------------|:-----------------------|:-----------------------|--------------------------:|-----------------:|-----------:|------------------------------:|
+| land plant (64,152 bp)     | *A. thaliana*          | RTX PRO 6000 Blackwell |                      39.3 |             16.8 |       22.5 |                          19.3 |
+| land plant (64,152 bp)     | *C. arabica*           | RTX PRO 6000 Blackwell |                      40.4 |             16.8 |       23.6 |                          19.3 |
+| land plant (64,152 bp)     | *A. thaliana*          | Quadro RTX 8000        |                      44.8 |             16.3 |       28.5 |                          21.3 |
+| vertebrate (213,840 bp)    | chromosome 1 of GRCh38 | Quadro RTX 8000        |                      62.7 |             32.7 |       30.0 |                          21.3 |
+
+GPU memory: the largest value of `nvidia-smi`, read every 10 s. Rest: the peak
+virtual memory minus the GPU memory, i.e. the address space of TensorFlow, CUDA
+and the data on the host. After loading the model: the virtual memory once the
+model is loaded, before the first batch is predicted, which does not depend on
+the input data or the model. The rest mostly depends on the GPU and the node:
+with the same model and genome, it is about 6 GiB larger on the Quadro RTX 8000
+than on the RTX PRO 6000 Blackwell. On the same GPU, the vertebrate model with
+its longer subsequences adds only about 1.5 GiB.
+
+`HybridModel.py` of v0.3.7 (same TensorFlow version, compression in the main
+thread) used the same memory as v0.3.8 with 4 compression threads
+(*A. thaliana*, Quadro RTX 8000): 44.8 GiB virtual memory, 2.1 GiB RAM and
+16.3 GiB GPU memory.
+
 ## Annotation quality
 The predictions of both versions and the reference annotation are reduced to the
 longest coding transcript per gene (Helixer already only predicts the longest
@@ -121,6 +156,16 @@ CDS pieces of 1 bp are counted in the longest coding transcript per gene.
 v0.3.8 predicts 60 to 69% fewer CDS pieces of 1 bp than v0.3.7 (e.g. 3,044
 instead of 9,448 in *C. arabica*), though still more than the reference
 annotations contain (12 to 51).
+
+Fewer CDS pieces of 1 bp can be predicted with higher donor penalties
+(`hmm.donor_fixed_penalty`, default 20) and donor/acceptor weights
+(`hmm.weights`, default 2) in a `--post-config-path` file (template:
+`helixer_post_bin --print-default-config`). In tests on further genomes, higher
+values removed more CDS pieces of 1 bp and slightly raised the exon and intron
+F1, but split more genes at introns that RNA-seq reads show to belong to one
+transcript and very slightly lowered the share of proteins OMArk finds consistent
+with the lineage (more fragmented proteins and more of unknown origin), so the
+defaults are a carefully chosen compromise.
 
 ### BUSCO
 Proteins of all predicted transcripts (`gffread -y`) scored with BUSCO 6.0.0 in

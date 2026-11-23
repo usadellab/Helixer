@@ -235,6 +235,8 @@ def three_step_gff3(
     preds_path, preds_result = hybrid_preds_result
     assert preds_result.returncode == 0, f'HybridModel.py failed:\n{preds_result.stderr}'
     out = f'{tmp_dir}/three_step.gff3'
+    # todo: only things needed are still just the positional file arguments, the rest is optional,
+    #  maybe add a test for that someday
     result = subprocess.run(
         [bin_path,
          '--window-size', '100', '--edge-threshold', '0.1', '--peak-threshold', '0.8',

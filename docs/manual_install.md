@@ -78,10 +78,14 @@ pip install -r requirements.3.10.txt
 ```
 
 ### Helixer itself
+To run Helixer on a GPU, use the second command instead of the first, see
+[GPU requirements](#gpu-requirements-optional-but-highly-recommended-for-realistically-sized-datasets).
 
 ```shell script
 # from the Helixer directory
 pip install .  # or `pip install -e .`, if you will be changing the code
+# with GPU support
+pip install .[gpu]
 ```
 
 #### Test Helixer
