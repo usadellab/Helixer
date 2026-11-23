@@ -1,10 +1,11 @@
 [build-system]
-requires = ["setuptools < 72.0"]
+# setuptools before 70.1 needs the wheel package to build a wheel
+requires = ["setuptools < 72.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "helixer"
-version = "0.3.7"
+version = "0.3.8"
 description = "Structural genome annotation utilizing Deep Neural Networks and a Hidden Markov Model"
 readme = "README.md"
 requires-python = ">=3.10.12"
@@ -14,11 +15,10 @@ classifiers = [
     "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
 ]
 dependencies = [
-    "geenuff @ git+https://github.com/weberlab-hhu/GeenuFF@v0.3.2",
-    "sqlalchemy==1.3.22",
-    "tensorflow>=2.6.2",
+    "geenuff @ git+https://github.com/usadellab/GeenuFF@v0.4.0",
+    "sqlalchemy==1.4.54",
+    "tensorflow==2.15.1",
     "tensorflow-addons>=0.21.0",
-    "seaborn",
     "Keras<3.0.0",
     "keras_layer_normalization",
     "terminaltables",
@@ -26,9 +26,14 @@ dependencies = [
     "intervaltree",
     "numpy",
     "h5py",
-    "multiprocess",
     "numcodecs",
-    "appdirs"
+    "appdirs",
+    "scikit-learn",
+    "scipy",
+    "termcolor",
+    "requests",
+    "pyyaml",
+    "zlib-ng>=1.0.0"
 ]
 authors = [
   {name = "Alisandra K. Denton"},
@@ -39,9 +44,13 @@ authors = [
   {name = "Christopher Guenther"},
 ]
 
+[project.optional-dependencies]
+# NVIDIA's CUDA libraries matching the installed TensorFlow version, only available for Linux
+gpu = ["tensorflow[and-cuda]==2.15.1; sys_platform == 'linux'"]
+
 [project.urls]
-"Homepage" = "https://github.com/weberlab-hhu/Helixer"
-"Documentation" = "https://github.com/weberlab-hhu/Helixer"
+"Homepage" = "https://github.com/usadellab/Helixer"
+"Documentation" = "https://github.com/usadellab/Helixer"
 
 [project.license]
 text = "GNU General Public License v3 (GPLv3)"

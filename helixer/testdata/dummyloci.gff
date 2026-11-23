@@ -1,26 +1,28 @@
 ##gff-version 3
-# test case 1: aligned cds and exon features at the boundaries (no UTR marked implicitely)
-# as well as a missing start codon
-# 
-# the first transcript has the alignment error at the coding end
-# the second transcript is without errors 
-# the third transcript has the alignment error on both ends as well as no start codon
+# test case 1: CDS and exon lines ending together (no UTR), a stop codon inside a CDS, a missing
+# start codon and CDS shorter than 60 bp
+#
+# the first transcript lacks its 3' UTR, its CDS ending with the transcript, and has 21 bp of CDS
+# the second transcript has its CDS run on past the first transcript's stop codon (118-120), a stop
+# codon inside the CDS, and 122 bp of CDS, no whole number of codons
+# the third transcript lacks both UTRs and its start codon, and its 10 bp of CDS are no whole number
+# of codons and too short
 1	manual	gene	1	400	.	+	.	ID=gene0
 1	manual	mRNA	1	120	.	+	.	ID=x1;Parent=gene0
 1	manual	exon	1	21	.	+	.	ID=ftr000000;Parent=x1
-1	manual	CDS	11	21	.	+	0	ID=ftr000001;Parent=x;protein_id=x1.p
+1	manual	CDS	11	21	.	+	0	ID=ftr000001;Parent=x1;protein_id=x1.p
 1	manual	exon	111	120	.	+	.	ID=ftr000002;Parent=x1
-1	manual	CDS	111	120	.	+	1	ID=ftr000003;Parent=x;protein_id=x1.p
+1	manual	CDS	111	120	.	+	1	ID=ftr000003;Parent=x1;protein_id=x1.p
 1	manual	mRNA	1	400	.	+	.	ID=y1;Parent=gene0
 1	manual	exon	1	21	.	+	.	ID=ftr000004;Parent=y1
-1	manual	CDS	11	21	.	+	0	ID=ftr000005;Parent=y;protein_id=y1.p
+1	manual	CDS	11	21	.	+	0	ID=ftr000005;Parent=y1;protein_id=y1.p
 1	manual	exon	111	120	.	+	.	ID=ftr000006;Parent=y1
-1	manual	CDS	111	120	.	+	1	ID=ftr000007;Parent=y;protein_id=y1.p
+1	manual	CDS	111	120	.	+	1	ID=ftr000007;Parent=y1;protein_id=y1.p
 1	manual	exon	201	400	.	+	.	ID=ftr000008;Parent=y1
-1	manual	CDS	201	301	.	+	2	ID=ftr000009;Parent=y;protein_id=y1.p
+1	manual	CDS	201	301	.	+	2	ID=ftr000009;Parent=y1;protein_id=y1.p
 1	manual	mRNA	111	120	.	+	.	ID=z1;Parent=gene0
 1	manual	exon	111	120	.	+	.	ID=ftr000010;Parent=z1
-1	manual	CDS	111	120	.	+	0	ID=ftr000011;Parent=z;protein_id=z1.p
+1	manual	CDS	111	120	.	+	0	ID=ftr000011;Parent=z1;protein_id=z1.p
 # 
 # test case 2: empty gene
 1	manual	gene	600	1000	.	+	.	ID=gene_empty
@@ -49,9 +51,10 @@
 1	manual	exon	1781	1800	.	+	.	ID=e3;Parent=y4
 1	manual	CDS	1781	1795	.	+	0	ID=c3;Parent=y4
 #
-# test case 5: gene without errors, but with an intron of length 0
-# the first transscript contains the exons without a gap in between them
-# the second transcript is without special cases
+# test case 5: an intron of length 0
+# the first transcript has two exons without a gap between them, which is no error, but 143 bp of
+# CDS, no whole number of codons
+# the second transcript is without errors
 2	manual	gene	1	300	.	+	.	ID=gene_intron_len_0
 2	manual	mRNA	1	300	.	+	.	ID=x5;Parent=gene_intron_len_0
 2	manual	exon	1	151	.	+	.	ID=e0;Parent=x5
@@ -62,11 +65,11 @@
 2	manual	exon	120	161	.	+	.	ID=e2;Parent=y5
 2	manual	CDS	140	161	.	+	0	ID=c2;Parent=y5
 2	manual	exon	239	280	.	+	.	ID=e3;Parent=y5
-2	manual	CDS	239	270	.	+	2	ID=c3;Parent=y5
+2	manual	CDS	239	276	.	+	2	ID=c3;Parent=y5
 # 
 # test case 6: 5p phase != 0 and intron below 60 bp
-# the first transcript starts with the wrong phase
-# the second transcript has the short intron
+# the first transcript starts with the wrong phase, and its CDS 25 bp before its exon (cds_outside_exons)
+# the second transcript has the short intron (576-579) and 98 bp of CDS, no whole number of codons
 2	manual	gene	550	750	.	+	.	ID=gene_phase_0_short_intron
 2	manual	mRNA	550	750	.	+	.	ID=x6;Parent=gene_phase_0_short_intron	
 2	manual	exon	550	600	.	+	.	ID=e0;Parent=x6
@@ -81,7 +84,8 @@
 2	manual	exon	700	750	.	+	.	ID=e4;Parent=y6
 2	manual	CDS	700	725	.	+	2	ID=c4;Parent=y6
 #
-# test case 7: missing 5p utr and phase of the last cds does not match sequence length 
+# test case 7: missing 5p utr; the phase of the last cds does not match its length, which is
+# not an error, the file's phases being unused
 # gene is on the minus strand
 2	manual	gene	950	1350	.	-	.	ID=gene_wrong_phase_last_exon
 2	manual	mRNA	950	1350	.	-	.	ID=x7;Parent=gene_wrong_phase_last_exon
@@ -92,19 +96,30 @@
 2	manual	exon	1299	1350	.	-	.	ID=e2;Parent=x7
 2	manual	CDS	1299	1350	.	-	0	ID=c2_problem;Parent=x7
 # 
-# test case 8: overlapping exons and missing start codon
+# test case 8: overlapping exons and CDS pieces
 # gene is on the minus strand
-# the first transcript has overlapping exons (the first two) and a missing start codon
+# the first transcript has overlapping exons and CDS pieces (the first two of each), which mask it
+# whole before anything else is checked, so its missing start codon is not recorded
 # the second transcript is without errors and has a non-coding exon
 2	manual	gene	1550	1750	.	-	.	ID=gene_overlapping_exons_missing_start
 2	manual	mRNA	1550	1750	.	-	.	ID=x8;Parent=gene_overlapping_exons_missing_start	
 2	manual	exon	1550	1600	.	-	.	ID=e0;Parent=x8
-2	manual	CDS	1575	1600	.	-	2	ID=c0_problem;Parent=x;protein_id=x8.p
+2	manual	CDS	1575	1600	.	-	2	ID=c0_problem;Parent=x8;protein_id=x8.p
 2	manual	exon	1599	1650	.	-	.	ID=e1;Parent=x8
-2	manual	CDS	1599	1650	.	-	2	ID=c1_problem;Parent=x;protein_id=x8.p
+2	manual	CDS	1599	1650	.	-	2	ID=c1_problem;Parent=x8;protein_id=x8.p
 2	manual	exon	1720	1750	.	-	.	ID=e2;Parent=x8
-2	manual	CDS	1720	1725	.	-	0	ID=c2;Parent=x;protein_id=x8.p
+2	manual	CDS	1720	1725	.	-	0	ID=c2;Parent=x8;protein_id=x8.p
 2	manual	mRNA	1550	1750	.	-	.	ID=y8;Parent=gene_overlapping_exons_missing_start	
 2	manual	exon	1550	1600	.	-	.	ID=e3;Parent=y8
-2	manual	exon	1680	1750	.	-	.	ID=e4;Parent=y8
-2	manual	CDS	1701	1730	.	-	0	ID=c4;Parent=y;protein_id=y8.p
+2	manual	exon	1660	1750	.	-	.	ID=e4;Parent=y8
+2	manual	CDS	1671	1730	.	-	0	ID=c4;Parent=y8;protein_id=y8.p
+#
+# test case 9: a gene without errors on the minus strand
+# both UTRs, a start codon (871-869) and a stop codon (733-731), 60 bp of CDS in two pieces and an
+# 81 bp intron
+1	manual	gene	701	900	.	-	.	ID=gene_minus_without_errors
+1	manual	mRNA	701	900	.	-	.	ID=x9;Parent=gene_minus_without_errors
+1	manual	exon	701	760	.	-	.	ID=e9_0;Parent=x9
+1	manual	CDS	731	760	.	-	0	ID=c9_0;Parent=x9;protein_id=x9.p
+1	manual	exon	842	900	.	-	.	ID=e9_1;Parent=x9
+1	manual	CDS	842	871	.	-	0	ID=c9_1;Parent=x9;protein_id=x9.p

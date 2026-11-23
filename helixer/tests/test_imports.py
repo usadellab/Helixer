@@ -22,11 +22,7 @@ def test_helixer_importable() -> None:
 
 
 def test_geenuff_importable() -> None:
-    _assert_importable('geenuff', 'pip install git+https://github.com/weberlab-hhu/GeenuFF')
-
-
-def test_dustdas_importable() -> None:
-    _assert_importable('dustdas', 'pip install git+https://github.com/weberlab-hhu/dustdas')
+    _assert_importable('geenuff', 'pip install git+https://github.com/usadellab/GeenuFF')
 
 
 def test_helixer_post_bin_available() -> None:

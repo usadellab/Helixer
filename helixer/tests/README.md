@@ -2,7 +2,7 @@
 Run all tests from the `Helixer/helixer` directory.
 
 ## Dependency checks — `test_imports.py`
-Verifies that all required Python packages (`helixer`, `geenuff`, `dustdas`) are importable
+Verifies that all required Python packages (`helixer`, `geenuff`) are importable
 and that the `helixer_post_bin` binary is on PATH. Run this first after a fresh install to
 get actionable error messages for missing dependencies.
 
@@ -21,7 +21,7 @@ pytest --verbose tests/test_helixer.py
 
 ## Integration tests — `test_integration.py`
 End-to-end pipeline tests that run the actual CLI scripts and verify their outputs.
-All tests must be run from `Helixer/helixer`. Tiny delays during testing (~10-30 sec.) are expected;
+All tests must be run from `Helixer/helixer`. Tiny delays during testing (~5 sec.) are expected;
 even though the test data is small some processes like `Helixer.py` still require a few seconds to run.
 
 ```bash

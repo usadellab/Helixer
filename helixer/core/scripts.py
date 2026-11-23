@@ -6,7 +6,16 @@ from termcolor import colored
 from abc import ABC, abstractmethod
 from importlib.metadata import version
 
+from geenuff.base.helpers import require_fasta_and_gff, require_input_files
+
 logger = logging.getLogger('HelixerLogger')
+
+
+def check_fasta_path(parser: argparse.ArgumentParser, fasta_path: str) -> None:
+    """Stops with a usage error, before anything is written, where the FASTA file does not exist, is
+    named like a GFF3 file or does not start with '>' (see geenuff.base.helpers.require_fasta_and_gff)."""
+    require_input_files(parser, [fasta_path])
+    require_fasta_and_gff(parser, fasta_path, None)
 
 
 class ParameterParser(ABC):
@@ -27,12 +36,11 @@ class ParameterParser(ABC):
                                      help='Compression algorithm used for the intermediate .h5 output '
                                           'files with a fixed compression level of 4. '
                                           '(Default is "gzip", which is much slower than "lzf".)')
-        self.data_group.add_argument('--no-multiprocess', action='store_true',
-                                     help='Whether to not parallize the numerification of large sequences. Uses half'
-                                          'the memory but can be much slower when many CPU cores can be utilized.')
         self.parser.add_argument('--version', action='version', version='%(prog)s ' + version('helixer'))
         # Default values have to be specified - and potentially added - here
-        self.defaults = {'compression': 'gzip', 'no_multiprocess': False}
+        self.defaults = {'compression': 'gzip'}
+        # names of the parameters given on the command line or in the config file, i.e. not defaulted
+        self.user_set: set[str] = set()
 
     @abstractmethod
     def check_args(self, args):
@@ -61,6 +69,7 @@ class ParameterParser(ABC):
 
         # merge the config and cli parameters with the cli parameters having priority
         # there are no type checks being done for config parameters
+        self.user_set = set(config) | set(vars(args))
         config = {**self.defaults, **config, **vars(args)}
         return argparse.Namespace(**config)
 
@@ -79,4 +88,7 @@ class ExportParameterParser(ParameterParser):
 
     def check_args(self, args):
         assert args.h5_output_path.endswith('.h5'), '--output-path must end with ".h5"'
+        # only fasta2h5.py, of the export scripts, reads a FASTA file
+        if getattr(args, 'fasta_path', None):
+            check_fasta_path(self.parser, args.fasta_path)
 

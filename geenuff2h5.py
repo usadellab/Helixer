@@ -1,6 +1,7 @@
 #! /usr/bin/env python3
 import argparse
 import logging.config
+from importlib.metadata import version
 from pprint import pformat
 from termcolor import colored
 
@@ -25,8 +26,7 @@ def main(args: argparse.Namespace) -> None:
     write_by = round(args.write_by / args.subsequence_length) * args.subsequence_length
     controller = HelixerExportController(args.input_db_path, args.h5_output_path, match_existing=match_existing,
                                          h5_group=h5_group)
-    controller.export(chunk_size=args.subsequence_length, write_by=write_by, modes=modes, compression=args.compression,
-                      multiprocess=not args.no_multiprocess)
+    controller.export(chunk_size=args.subsequence_length, write_by=write_by, modes=modes, compression=args.compression)
 
 
 if __name__ == '__main__':
@@ -46,17 +46,19 @@ if __name__ == '__main__':
                                     'X because you are adding an additional annotation set to an existing file.')
     pp.data_group.add_argument('--write-by', type=int,
                                help='Write in super-chunks with this many base pairs, which will be rounded to be '
-                                    'divisible by subsequence-length. (Default is 21_384_000_000).')
+                                    'divisible by subsequence-length; peak memory grows with it, not with the '
+                                    'chromosome length. (Default is 5_346_000, 250 subsequences of 21384 bp).')
 
     # need to add any default values like this
     pp.defaults['add_additional'] = ''
     pp.defaults['subsequence_length'] = 21384
     pp.defaults['modes'] = 'all'
-    pp.defaults['write_by'] = 21_384_000_000
+    pp.defaults['write_by'] = 5_346_000
 
     args = pp.get_args()
     logging.config.dictConfig(get_log_dict())
     logger = logging.getLogger('HelixerLogger')
-    logger.info(colored('\ngeenuff2h5.py config:\n', 'yellow') + f'{pformat(vars(args))}\n')
+    logger.info(colored(f'\ngeenuff2h5.py (Helixer {version("helixer")}) config:\n', 'yellow')
+                + f'{pformat(vars(args))}\n')
     main(args)
-    logger.info(f'\nFinished writing {args.h5_output_path}.')
+    logger.info(f'Finished writing {args.h5_output_path}.')

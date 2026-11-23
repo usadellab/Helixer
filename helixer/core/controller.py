@@ -2,7 +2,7 @@ import os
 import csv
 import logging
 from shutil import copyfile
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import sessionmaker
 
 import geenuff
@@ -36,7 +36,7 @@ class HelixerController(object):
         # add Helixer specific tables to the input db if they don't exist yet
         new_tables = ['mer', 'meta_information']
         for table in new_tables:
-            if not self.engine.dialect.has_table(self.engine, table):
+            if table not in inspect(self.engine).get_table_names():
                 geenuff.orm.Base.metadata.tables[table].create(self.engine)
         self.session = sessionmaker(bind=self.engine)()
 

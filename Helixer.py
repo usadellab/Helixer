@@ -11,12 +11,20 @@ import subprocess
 from termcolor import colored
 from pprint import pformat
 import logging.config
+from importlib.metadata import version
 
-from helixer.core.scripts import ParameterParser
+from helixer.core.scripts import ParameterParser, check_fasta_path
 from helixer.core.data import prioritized_models, report_if_current_not_best, identify_current, set_model_path
 from helixer.prediction.HybridModel import HybridModel
 from helixer.export.exporter import HelixerFastaToH5Controller
 from helixer.core.helpers import get_log_dict
+
+# Helixer.py parameters passed on to helixer_post_bin under the same name (as --kebab-case flags)
+POST_PARAMS = ('window_size', 'edge_threshold', 'peak_threshold', 'min_coding_length', 'min_intron_length',
+               'min_intron_length_u12')
+# transcripts with shorter introns are masked by GeenuFF (too_short_intron, default min_intron_length),
+# so the models never learned such introns
+MIN_TRAINED_INTRON_LENGTH = 20
 
 
 class HelixerParameterParser(ParameterParser):
@@ -72,6 +80,10 @@ class HelixerParameterParser(ParameterParser):
                                           'quality if overlapping is enabled. Smaller values may lead to better '
                                           'predictions but will take longer. Has to be smaller than subsequence_length '
                                           '(Default is subsequence_length * 3 / 4)')
+        self.pred_group.add_argument('--compression-threads', type=int,
+                                     help='number of CPU threads compressing the predictions while the GPU predicts '
+                                          'the next batches (only with --compression gzip); 0 compresses in the main '
+                                          'thread after each batch. (Default is 4.)')
 
         self.post_group = self.parser.add_argument_group("Post-processing parameters")
         self.post_group.add_argument('--window-size', type=int,
@@ -87,6 +99,26 @@ class HelixerParameterParser(ParameterParser):
         self.post_group.add_argument('--min-coding-length', type=int,
                                      help='output is filtered to remove genes with a total coding length shorter '
                                           'than this value')
+        self.post_group.add_argument('--min-intron-length', type=int,
+                                     help='minimum intron length in bp for U2-type introns (GT-AG and GC-AG, also '
+                                          'covers U12-type GT-AG introns); values below 2 act as 2. (Default is 50.)')
+        self.post_group.add_argument('--min-intron-length-u12', type=int,
+                                     help='minimum intron length in bp for U12-type AT-AC introns; values below 2 '
+                                          'act as 2. Setting it to the same value as --min-intron-length is a '
+                                          'reasonable choice. (Default is 30.)')
+        self.post_group.add_argument('--post-config-path', type=str,
+                                     help='YAML config file for helixer_post_bin with further post-processing '
+                                          'parameters (template: helixer_post_bin --print-default-config); the '
+                                          'post-processing parameters above override its values only when set '
+                                          'explicitly for Helixer.py')
+        self.post_group.add_argument('--post-threads', type=int,
+                                     help='number of CPU threads for post-processing; 0 uses all available '
+                                          'cores, as does a number larger than the available cores. (Default is 4.)')
+        self.post_group.add_argument('--post-max-in-flight-mbp', type=float,
+                                     help='cap on the total length in Mbp of the candidate regions queued or being '
+                                          'decoded at a time during post-processing; bounds the peak memory on '
+                                          'genomes with many long candidate regions (e.g. human), does not change '
+                                          'the output. (Default is 4.)')
 
         helixer_defaults = {
             'fasta_path': '',
@@ -102,10 +134,16 @@ class HelixerParameterParser(ParameterParser):
             'no_overlap': False,
             'overlap_offset': None,
             'overlap_core_length': None,
+            'compression_threads': 4,
             'window_size': 100,
             'edge_threshold': 0.1,
             'peak_threshold': 0.8,
             'min_coding_length': 60,
+            'min_intron_length': 50,
+            'min_intron_length_u12': 30,
+            'post_config_path': '',
+            'post_threads': 4,
+            'post_max_in_flight_mbp': 4.0,
         }
         self.defaults = {**self.defaults, **helixer_defaults}
 
@@ -121,7 +159,7 @@ class HelixerParameterParser(ParameterParser):
         return os.path.join(model_path, lineage, current_model)
 
     def check_args(self, args: argparse.Namespace) -> None:
-
+        check_fasta_path(self.parser, args.fasta_path)
         if args.model_filepath is not None:
             print(f'overriding the lineage based model, '
                   f'with the manually specified {args.model_filepath}', file=sys.stderr)
@@ -172,6 +210,17 @@ class HelixerParameterParser(ParameterParser):
         else:
             args.overlap_core_length = int(args.subsequence_length * 3 / 4)
 
+        # checked here, as HybridModel.py and helixer_post_bin would only reject them after the FASTA conversion
+        # threads for h5 file writing pre-evaluated here as well
+        for name in ('compression_threads', 'min_intron_length', 'min_intron_length_u12', 'post_threads'):
+            value = getattr(args, name)
+            assert value >= 0, f'--{name.replace("_", "-")} must be positive, got {value}'
+        assert args.post_max_in_flight_mbp > 0, \
+            f'--post-max-in-flight-mbp must be positive, got {args.post_max_in_flight_mbp}'
+        if args.post_config_path:
+            assert os.path.isfile(args.post_config_path), \
+                f'--post-config-path {args.post_config_path} does not exist or is not a file'
+
         # check if custom temporary dir actually exists
         if args.temporary_dir is not None:
             try:
@@ -185,12 +234,20 @@ class HelixerParameterParser(ParameterParser):
 def main() -> None:
     logging.config.dictConfig(get_log_dict())
     logger = logging.getLogger('HelixerLogger')
-    logger.info(colored(f'Starting Helixer, using python version {sys.version}', 'green'))
+    logger.info(colored(f'Starting Helixer {version("helixer")}, using python version {sys.version}', 'green'))
     helixer_post_bin = 'helixer_post_bin'
     start_time = time.time()
     pp = HelixerParameterParser('config/helixer_config.yaml')
     args = pp.get_args()
     args.overlap = not args.no_overlap  # minor overlapping is a far better default for inference. Thus, this hack.
+    short = [f'--{name.replace("_", "-")} {getattr(args, name)}'
+             for name in ('min_intron_length', 'min_intron_length_u12')
+             if getattr(args, name) < MIN_TRAINED_INTRON_LENGTH]
+    if short:
+        logger.warning(colored(f'{", ".join(short)}: introns shorter than {MIN_TRAINED_INTRON_LENGTH} bp were '
+                               f'excluded from the training data of the Helixer models and are only known from a few '
+                               f'unusual genomes, so predicted introns this short are unreliable (see '
+                               f'docs/helixer_options.md, post-processing parameters)', 'yellow'))
     # before we start, check if helixer_post_bin will (presumably) be able to run
     # first, is it there
     logger.info(colored('\nHelixer.py config:\n', 'yellow') + f'{pformat(vars(args))}\n')
@@ -204,12 +261,15 @@ def main() -> None:
         print('Remember to add the compiled binary to a folder in your PATH variable.', file=sys.stderr)
         sys.exit(1)
     else:
-        run = subprocess.run([helixer_post_bin])
-        # we should get the help function and return code 1 if helixer_post_bin is fully installed
-        if run.returncode != 1:
-            # if we get anything else, subprocess will have shown the error (I hope),
-            # so just exit with the return code
-            sys.exit(run.returncode)
+        run = subprocess.run([helixer_post_bin, '--help'], capture_output=True, text=True)
+        # a fully installed helixer_post_bin prints its help and returns 0; the flag-based CLI
+        # (--window-size etc.) of HelixerPost >= 0.4.0 is required, older versions only accept positional parameters;
+        # --max-in-flight-mbp is the most recent flag Helixer.py passes
+        if run.returncode != 0 or '--max-in-flight-mbp' not in run.stdout:
+            print(colored(f'\nError: {helixer_post_bin} --help failed or {helixer_post_bin} is outdated; '
+                          f'HelixerPost 0.4.0 or newer is required.\n', 'red'), file=sys.stderr)
+            print(run.stderr, file=sys.stderr)
+            sys.exit(run.returncode or 1)
     # second, are we able to write the (or rather a dummy) output file to the directory
     out_dir = os.path.dirname(args.gff_output_path)
     out_dir = os.path.join(out_dir, '.')  # dodges checking existence of directory '' for the current directory
@@ -241,8 +301,7 @@ def main() -> None:
         controller = HelixerFastaToH5Controller(args.fasta_path, tmp_genome_h5_path)
         # hard coded subsequence length due to how the models have been created
         controller.export_fasta_to_h5(chunk_size=args.subsequence_length, compression=args.compression,
-                                      multiprocess=not args.no_multiprocess, species=args.species,
-                                      write_by=args.write_by)
+                                      species=args.species, write_by=args.write_by)
 
         msg = 'with' if args.overlap else 'without'
         msg = 'FASTA to H5 conversion done. Starting neural network prediction ' + msg + ' overlapping.'
@@ -256,7 +315,8 @@ def main() -> None:
             '--val-test-batch-size', str(args.batch_size),
             '--overlap-offset', str(args.overlap_offset),
             '--core-length', str(args.overlap_core_length),
-            '--compression', str(args.compression)
+            '--compression', str(args.compression),
+            '--compression-threads', str(args.compression_threads)
         ]
         if args.overlap:
             hybrid_model_args.append('--overlap')
@@ -267,10 +327,18 @@ def main() -> None:
 
         logger.info(colored('Neural network prediction done. Starting post processing.', 'green'))
 
-        # call to HelixerPost, has to be in PATH
-        helixerpost_cmd = [helixer_post_bin, tmp_genome_h5_path, tmp_pred_h5_path]
-        helixerpost_params = [args.window_size, args.edge_threshold, args.peak_threshold, args.min_coding_length]
-        helixerpost_cmd += [str(e) for e in helixerpost_params] + [args.gff_output_path]
+        # call to HelixerPost, has to be in PATH; only explicitly set parameters are passed, so that
+        # values from --post-config-path are not overridden by Helixer.py defaults (which equal HelixerPost's)
+        helixerpost_cmd = [helixer_post_bin]
+        for name in POST_PARAMS:
+            if name in pp.user_set:
+                helixerpost_cmd += [f'--{name.replace("_", "-")}', str(getattr(args, name))]
+        if args.post_config_path:
+            helixerpost_cmd += ['--config', args.post_config_path]
+        helixerpost_cmd += ['--threads', str(args.post_threads)]
+        helixerpost_cmd += ['--max-in-flight-mbp', str(args.post_max_in_flight_mbp)]
+        helixerpost_cmd += [tmp_genome_h5_path, tmp_pred_h5_path, args.gff_output_path]
+        logger.info(f'Post-processing command: {" ".join(helixerpost_cmd)}')
 
         helixerpost_out = subprocess.run(helixerpost_cmd)
         if helixerpost_out.returncode == 0:

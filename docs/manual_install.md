@@ -1,9 +1,14 @@
+# Manual installation
 > **! Note**: Manual installation is only available for _Linux_ operating systems.
+
+If you just want to install Helixer in one line without the steps explained, see
+[One-line installation](#one-line-installation).
+
 ### Get the code
 First, download and checkout the latest release
 ```shell script
 # from a directory of your choice
-git clone https://github.com/weberlab-hhu/Helixer.git
+git clone https://github.com/usadellab/Helixer.git
 cd Helixer
 # git checkout dev # v0.2.0
 ```
@@ -37,14 +42,32 @@ The steps below assume you are working in the same environment.
 
 https://github.com/usadellab/HelixerPost
 
-Setup according to included instructions and
-further add the compiled `helixer_post_bin` to 
-your system PATH. 
+Setup according to included instructions and further add the compiled `helixer_post_bin` to 
+your system PATH. This version of Helixer (0.3.8) requires HelixerPost 0.4.0 or newer
+(check with `helixer_post_bin --version`); Helixer 0.3.7 and older require HelixerPost 0.3.0.
+
+### Upgrade pip first
+
+> [!WARNING]
+> Upgrade pip in every new virtual environment before installing anything else. pip versions
+> older than 26.2.2 trust the compromised eMudhra emSign root certificate through their
+> bundled `certifi`, even when the operating system no longer does (see the
+> [Python advisory](https://discuss.python.org/t/information-for-python-users-regarding-emudhra-emsign-ca-certificate-security-incident/109576)).
+> Only Python 3.13.17, 3.14.9, 3.15.1 and newer bundle a fixed pip. No release of Python 3.10
+> or 3.12 will: 3.10 reached its end of life in October 2026, and security-only releases such
+> as 3.12 do not receive pip updates. Python installed from Linux distribution packages takes
+> the pip for new environments from those packages, which are equally affected until the
+> distribution updates them. `python3 -m venv` therefore still installs an affected pip.
+>
+> Install pip 26.2.2 from its direct URL with the hash given in the advisory, so the download
+> does not depend on the old certificates. `certifi` was upgraded in Helixer's requirements:
+> ```shell script
+> pip install "pip @ https://files.pythonhosted.org/packages/3f/06/3e4420302363fbb71be3c7f35ce042f54bfca330e3e66b3a2e3c4cca579f/pip-26.2.2-py3-none-any.whl#sha256=fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70"
+> ```
+> Once pip is at 26.2.2 or newer, `pip install --upgrade pip` works as usual again.
 
 ### Most python dependencies of Helixer
-We recommend to run `pip install --upgrade pip`<sup>1</sup> and `pip install wheel` first before
-continuing with installing Helixer and it's requirements. So when in doubt, just run
-these commands first.
+After upgrading pip as described above<sup>1</sup>, install Helixer's requirements.
 
 _<sup>1</sup> (required if instead of installing Helixer the output from pip is
 `successfully installed UNKNOWN 0.0.0` or you get the error `name, version not
@@ -55,10 +78,14 @@ pip install -r requirements.3.10.txt
 ```
 
 ### Helixer itself
+To run Helixer on a GPU, use the second command instead of the first, see
+[GPU requirements](#gpu-requirements-optional-but-highly-recommended-for-realistically-sized-datasets).
 
 ```shell script
 # from the Helixer directory
 pip install .  # or `pip install -e .`, if you will be changing the code
+# with GPU support
+pip install .[gpu]
 ```
 
 #### Test Helixer
@@ -89,14 +116,14 @@ pytest --verbose tests/test_integration.py
 
 ### GPU requirements (optional, but highly recommended for realistically sized datasets)
 To run on a GPU (highly recommended for realistically sized datasets),
-tensorflow needs to be installed with its GPU requirements, 
-see: https://www.tensorflow.org/install/gpu.
-It's recommended to install the cuda dependencies after the requirements and
-Helixer to prevent version mismatches.
+tensorflow needs NVIDIA's CUDA libraries, see: https://www.tensorflow.org/install/gpu.
+Helixer's `gpu` extra installs them into the virtual environment (about 3 GB), in the
+versions matching the installed tensorflow. The NVIDIA driver has to be installed on the
+system.
 
 ```bash
-# Linux instructions from the tensorflow GPU install
-pip install tensorflow[and-cuda]  # inside a virtual environment, otherwise use: python3 -m pip install tensorflow[and-cuda]
+# from the Helixer directory, instead of or after `pip install .`
+pip install ".[gpu]"  # or `pip install -e ".[gpu]"`, if you will be changing the code
 # Verify the installation:
 python3 -c "import tensorflow as tf; print(tf.config.list_physical_devices('GPU'))"
 
@@ -115,3 +142,15 @@ system packages:
 A GPU with 11GB Memory (e.g. GTX 1080 Ti) can run the largest 
 configurations described below, for smaller GPUs you might
 have to reduce the network or batch size.
+
+### One-line installation
+Requires the [Python development libraries](#python-development-libraries) and
+[HelixerPost](#post-processor). The line clones Helixer, creates and activates a virtual
+environment called 'env', installs pip 26.2.2 by its pinned hash (see
+[Upgrade pip first](#upgrade-pip-first)), and then installs Helixer's requirements and Helixer itself.
+```shell script
+# from a directory of your choice
+git clone https://github.com/usadellab/Helixer.git && cd Helixer && python3.10 -m venv env && source env/bin/activate && pip install "pip @ https://files.pythonhosted.org/packages/3f/06/3e4420302363fbb71be3c7f35ce042f54bfca330e3e66b3a2e3c4cca579f/pip-26.2.2-py3-none-any.whl#sha256=fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70" && pip install -r requirements.3.10.txt && pip install .
+```
+For GPU support, replace the final `pip install .` with `pip install ".[gpu]"`, see
+[GPU requirements](#gpu-requirements-optional-but-highly-recommended-for-realistically-sized-datasets).

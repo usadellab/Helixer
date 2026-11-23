@@ -2,6 +2,7 @@
 import tensorflow as tf
 import logging.config
 import sys
+from importlib.metadata import version
 import numpy as np
 from termcolor import colored
 
@@ -150,6 +151,7 @@ class HybridModel(HelixerModel):
 if __name__ == '__main__':
     logging.config.dictConfig(get_log_dict())
     logger = logging.getLogger('HelixerLogger')
-    logger.info(colored(f'Starting Helixer, using python version {sys.version}', 'green'))
+    logger.info(colored(f'Starting HybridModel.py (Helixer {version("helixer")}), using python version {sys.version}',
+                        'green'))
     model = HybridModel()
     model.run()

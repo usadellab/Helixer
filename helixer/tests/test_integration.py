@@ -75,7 +75,7 @@ def geenuff_h5(tmp_dir: pathlib.Path, geenuff_db: str) -> str:
     """Export the geenuff database to h5 via the Python API."""
     h5_path = f'{tmp_dir}/geenuff.h5'
     controller = HelixerExportController(geenuff_db, h5_path)
-    controller.export(chunk_size=CHUNK_SIZE, write_by=21_384_000_000, one_hot=True, longest_only=False)
+    controller.export(chunk_size=CHUNK_SIZE, write_by=5_346_000, one_hot=True, longest_only=False)
     return h5_path
 
 
@@ -86,8 +86,7 @@ def fasta_h5(tmp_dir: pathlib.Path) -> str:
     fa = os.path.join(HELIXER_TESTDATA, 'mini_test_data.fa')
     controller = HelixerFastaToH5Controller(fa, h5_path)
     controller.export_fasta_to_h5(
-        chunk_size=CHUNK_SIZE, compression='gzip',
-        multiprocess=True, species=SPECIES,
+        chunk_size=CHUNK_SIZE, compression='gzip', species=SPECIES,
         write_by=CHUNK_SIZE * 10,
     )
     return h5_path
@@ -119,9 +118,10 @@ def gff3_path(tmp_dir: pathlib.Path) -> str:
     out = f'{tmp_dir}/output.gff3'
     result = subprocess.run(
         [bin_path,
+         '--window-size', '100', '--edge-threshold', '0.1', '--peak-threshold', '0.8',
+         '--min-coding-length', '60',
          'testdata/mini_test_data.h5',
          'testdata/mini_test_preds.h5',
-         '100', '0.1', '0.8', '60',
          out],
         capture_output=True,
         text=True,
@@ -222,7 +222,8 @@ def three_step_gff3(
     """Run helixer_post_bin on 3-step pipeline output to produce a GFF3; return the path.
 
     Uses the same helixer_post_bin parameters as the HelixerPost README recommends/as Helixer.py defaults
-    (window_size=100, edge_threshold=0.1, peak_threshold=0.8, min_coding_length=60).
+    (window_size=100, edge_threshold=0.1, peak_threshold=0.8, min_coding_length=60,
+    min_intron_length=50, min_intron_length_u12=30).
     """
     bin_path = shutil.which('helixer_post_bin')
     if bin_path is None:
@@ -234,8 +235,13 @@ def three_step_gff3(
     preds_path, preds_result = hybrid_preds_result
     assert preds_result.returncode == 0, f'HybridModel.py failed:\n{preds_result.stderr}'
     out = f'{tmp_dir}/three_step.gff3'
+    # todo: only things needed are still just the positional file arguments, the rest is optional,
+    #  maybe add a test for that someday
     result = subprocess.run(
-        [bin_path, fasta_h5_path, preds_path, '100', '0.1', '0.8', '60', out],
+        [bin_path,
+         '--window-size', '100', '--edge-threshold', '0.1', '--peak-threshold', '0.8',
+         '--min-coding-length', '60', '--min-intron-length', '50', '--min-intron-length-u12', '30',
+         fasta_h5_path, preds_path, out],
         capture_output=True,
         text=True,
     )
@@ -681,7 +687,8 @@ class TestOneVsThreeStepEquivalence:
     """Verify that 1-step (Helixer.py) and 3-step inference produce identical GFF3 output.
 
     Both paths use the same genome, model, batch size, no-overlap mode, and
-    helixer_post_bin parameters (window=100, edge=0.1, peak=0.8, min_coding=60).
+    helixer_post_bin parameters (window=100, edge=0.1, peak=0.8, min_coding=60, min_intron=50,
+    min_intron_u12=30).
     Phase predictions are produced by the model output head in both cases.
     """
 

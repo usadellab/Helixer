@@ -707,7 +707,7 @@ Recommended inference settings when used via `--model-filepath`:
 |:----------------------------|:---------------------------|:---------------------------|
 | 213840                      | 106920                     | 160380                     |
 
-Training/validation species for the selected best model (`mammal_v0.3_a_0400.h5`); the
+Training/validation species for the selected best model (`mammal_v0.3_a_0100.h5`); the
 entire validation species were used, not just a random set of samples:
 
 | Training species           | NCBI accession                     | Validation species | NCBI accession            |
